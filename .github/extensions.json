@@ -22,13 +22,23 @@
     "_comment": [
       "An APK is only published if every gate passes. Tachimanga runs the classic",
       "Mihon/Tachiyomi extension API; extensions compiled against keiyoushi extensions-lib",
-      "1.6 (KeiSource) require Mihon 0.20.1+ and fail on Tachimanga, and an app-side minSdk",
-      "above 21 is not supported either.",
+      "1.6 (KeiSource) require Mihon 0.20.1+ and fail on Tachimanga.",
       "These are checked on the built APK, so they cannot be fooled by build-config changes."
     ],
     "rejectDexSymbols": ["KeiSource"],
-    "requireDexSymbols": ["eu/kanade/tachiyomi/source/online"],
-    "maxMinSdk": 21
+    "requireDexSymbols": ["eu/kanade/tachiyomi/source/online"]
+  },
+
+  "targetMinSdk": {
+    "_comment": [
+      "Tachimanga requires minSdk 21 (that is what its 'Unsupported extension' message",
+      "tells you to rebuild with). Upstream raised minSdk to 26 in gradle/kei.versions.toml,",
+      "which would make every extension below unloadable, so builds rewrite that value to",
+      "this number first, and the gate still rejects anything that ends up above it."
+    ],
+    "value": 21,
+    "catalog": "gradle/kei.versions.toml",
+    "key": "android-sdk-min"
   },
 
   "extensions": [

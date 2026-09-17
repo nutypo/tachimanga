@@ -9,6 +9,10 @@ name: Update extensions
 # To use a private key instead, set these repository secrets (they take
 # precedence): SIGNING_KEY (base64 of a .jks), ALIAS, KEY_STORE_PASSWORD, KEY_PASSWORD.
 #
+# Upstream builds at a minSdk Tachimanga cannot load, so each build rewrites the
+# version catalog first (see targetMinSdk in .github/extensions.json). A self-test
+# of the gate/publish logic runs before the build - see .github/scripts/selftest.py.
+#
 # Every run rewrites ci-report.json, which records per-extension status, the reason
 # for skipping anything, and the tail of the Gradle log on failure - GitHub's own
 # job logs require authentication to read, so this is the audit trail.
@@ -51,6 +55,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: self
+
+      # Fails in seconds if the gates, the publish rule or the minSdk rewrite broke,
+      # rather than after a two-hour build that quietly publishes nothing.
+      - name: Check the publish logic
+        run: python3 self/.github/scripts/selftest.py
 
       - name: Set up Java 17
         uses: actions/setup-java@v4

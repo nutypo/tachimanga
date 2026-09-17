@@ -45,6 +45,7 @@ class Result:
     ref: str
     status: str = "skipped"  # published | up-to-date | skipped | failed
     reason: str = ""
+    prep: str = ""
     pkg: str = ""
     version: str = ""
     code: int = 0
@@ -296,6 +297,26 @@ def reset_module(upstream: pathlib.Path, ref: str, module: str) -> None:
                    capture_output=True, check=False)
 
 
+def lower_min_sdk(upstream: pathlib.Path, cfg: dict) -> str:
+    """Rewrite the build's minSdk to the one Tachimanga supports.
+
+    Upstream raised it to 26, which Tachimanga cannot load, so this is the
+    "lower minSdk to 21 and rebuild" step its own error message asks for.
+    """
+    path = upstream / cfg["catalog"]
+    if not path.exists():
+        return f"{cfg['catalog']} not found"
+    text = path.read_text(encoding="utf-8")
+    pattern = rf'^({re.escape(cfg["key"])}\s*=\s*)"[^"]*"'
+    updated, count = re.subn(pattern, rf'\g<1>"{cfg["value"]}"', text, flags=re.MULTILINE)
+    if count == 0:
+        return f"{cfg['key']} not present in {cfg['catalog']}"
+    if updated == text:
+        return f"minSdk already {cfg['value']}"
+    path.write_text(updated, encoding="utf-8")
+    return f"minSdk lowered to {cfg['value']}"
+
+
 def fetch_text(url: str) -> str | None:
     """GET a URL, or None if it is unreachable / not there."""
     try:
@@ -339,8 +360,17 @@ def module_config(module: str, ref: str = "main") -> dict:
 # main
 # --------------------------------------------------------------------------- #
 
+def effective_gates(manifest: dict) -> dict:
+    """The gates actually applied, which include the minSdk we rewrite builds to.
+
+    Keeping the two together means the gate can never drift from the value the
+    build was told to use.
+    """
+    return {**manifest["gates"], "maxMinSdk": manifest["targetMinSdk"]["value"]}
+
+
 def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Path,
-                gates: dict, signing_env: dict, keystore_fp: str) -> tuple[Result, str]:
+                gates: dict, min_sdk: dict, signing_env: dict, keystore_fp: str) -> tuple[Result, str]:
     """Build one manifest entry and publish it if it passes the gates."""
     module = entry["module"]
     result = Result(module=module, ref=ref)
@@ -349,6 +379,7 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
         if entry.get("patch"):
             patch = repo / ".github/scripts" / entry["patch"]
             run(["python3", str(patch), str(upstream)])
+        result.prep = lower_min_sdk(upstream, min_sdk)
 
         print(f"   building {gradle_task(module)}")
         build = subprocess.run(
@@ -403,7 +434,6 @@ def main() -> int:
     repo = pathlib.Path(args.repo).resolve()
     workdir = pathlib.Path(args.workdir)
     manifest = json.loads((repo / ".github/extensions.json").read_text(encoding="utf-8"))
-    gates = manifest["gates"]
 
     report = Report(
         generatedAt=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -416,6 +446,9 @@ def main() -> int:
     keystore_fp = keystore_fingerprint(keystore, signing_env["ALIAS"],
                                       signing_env["KEY_STORE_PASSWORD"])
     report.keystore.update({"sha256": keystore_fp} if keystore_fp else {})
+
+    min_sdk = manifest["targetMinSdk"]
+    gates = effective_gates(manifest)
 
     entries = manifest["extensions"]
     if args.only:
@@ -435,11 +468,12 @@ def main() -> int:
             for entry in group:
                 print(f"-> {entry['module']}")
                 result, outcome = build_entry(entry, upstream, ref, repo, gates,
-                                              signing_env, keystore_fp)
+                                              min_sdk, signing_env, keystore_fp)
                 failures += outcome == "failed"
                 report.results.append(asdict(result))
                 print(f"   {outcome}: {result.reason}"
-                      + (f" -> {result.apk}" if result.apk else ""))
+                      + (f" -> {result.apk}" if result.apk else "")
+                      + (f" [{result.prep}]" if result.prep else ""))
 
     # watch pass: no builds, just early warning about upstream moving under us
     for module in manifest["watch"].get("incompatible", []):
