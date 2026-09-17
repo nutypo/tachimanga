@@ -96,6 +96,16 @@ jobs:
           print(f"### Extension update run\n")
           print(f"keystore: `{report['keystore'].get('source')}`"
                 + (f" (sha256 `{report['keystore']['sha256'][:16]}…`)" if report['keystore'].get('sha256') else ""))
+          fp = report.get("fingerprint") or {}
+          if fp:
+              if fp["mismatched"]:
+                  print(f"\n**Signing: {len(fp['mismatched'])} APK(s) still carry another key.**")
+              else:
+                  print(f"\nSigning: every indexed APK carries `{fp['expected'][:16]}…`.")
+              if report.get("resigned"):
+                  print(f"Re-signed this run: {len(report['resigned'])}")
+              if fp.get("repoJson") == "updated":
+                  print("`repo.json` was updated to match.")
           print("\n| module | status | version | detail |")
           print("|---|---|---|---|")
           for r in report["results"]:

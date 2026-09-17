@@ -211,6 +211,50 @@ def test_retention(manifest: dict) -> None:
         check_true("and leaves the file in place", odd.exists())
 
 
+def test_signing(manifest: dict) -> None:
+    """repo.json's fingerprint has to describe the APKs this pipeline produces.
+
+    This deliberately does not assert that *every* indexed APK carries our key. Twelve of
+    them do not until the build re-signs them, and asserting it here would fail the run
+    that performs the re-signing - there is no earlier run that could fix it. The build
+    audits the whole index after re-signing instead, and goes red if anything is left.
+    """
+    path = REPO / "repo/repo.json"
+    original = path.read_text(encoding="utf-8")
+    doc = json.loads(original)
+    check("repo.json round-trips byte-exactly",
+          json.dumps(doc, ensure_ascii=False, indent=2) + "\n", original)
+
+    declared = doc["meta"]["signingKeyFingerprint"]
+    entries = json.loads((REPO / "repo/index.min.json").read_text(encoding="utf-8"))
+    buildable = {be.package_for(e["module"]) for e in manifest["extensions"]}
+    keys = {be.apk_signing_fingerprint(REPO / "repo/apk" / e["apk"])
+            for e in entries if e["pkg"] in buildable}
+    check("everything this pipeline builds shares one key", len(keys), 1)
+    check("repo.json advertises the key this pipeline signs with", declared, keys.pop())
+
+    check("an APK carrying another key is a re-sign candidate",
+          be.needs_resigning("a" * 64, declared), True)
+    check("our own APK is not", be.needs_resigning(declared, declared), False)
+    check("an unreadable signature is left alone", be.needs_resigning("", declared), False)
+
+    # sync_repo_fingerprint is what stops the two drifting apart again; try it on a copy.
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = pathlib.Path(tmp)
+        shutil.copytree(REPO / "repo", repo / "repo")
+        stale = repo / "repo/repo.json"
+        stale.write_text(json.dumps({"meta": {"name": "x", "website": "y",
+                                               "signingKeyFingerprint": "0" * 64}},
+                                    indent=2) + "\n", encoding="utf-8")
+        check("a stale fingerprint is corrected", be.sync_repo_fingerprint(repo, declared), True)
+        check("and the correction lands in repo.json",
+              json.loads(stale.read_text(encoding="utf-8"))["meta"]["signingKeyFingerprint"],
+              declared)
+        check("an already-correct fingerprint is left alone",
+              be.sync_repo_fingerprint(repo, declared), False)
+
+
+
 def test_manifest(manifest: dict) -> None:
     """The index and the manifest have to agree, or a build publishes nothing."""
     entries = json.loads((REPO / "repo/index.min.json").read_text(encoding="utf-8"))
@@ -239,6 +283,7 @@ def main() -> int:
                      ("module mapping", lambda _m: test_module_mapping()),
                      ("publishing", test_publishing),
                      ("retention", test_retention),
+                     ("signing", test_signing),
                      ("manifest", test_manifest)):
         print(f"\n== {name}")
         fn(manifest)

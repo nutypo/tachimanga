@@ -59,6 +59,8 @@ class Report:
     generatedAt: str = ""
     runUrl: str = ""
     keystore: dict = field(default_factory=dict)
+    fingerprint: dict = field(default_factory=dict)
+    resigned: list = field(default_factory=list)
     results: list = field(default_factory=list)
     watch: list = field(default_factory=list)
 
@@ -96,12 +98,16 @@ def gradle_task(module: str) -> str:
     return ":" + module.replace("/", ":") + ":assembleRelease"
 
 
-def find_aapt() -> str | None:
+def find_build_tool(tool: str) -> str | None:
     sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
     if not sdk:
         return None
-    found = sorted(glob.glob(os.path.join(sdk, "build-tools", "*", "aapt")))
+    found = sorted(glob.glob(os.path.join(sdk, "build-tools", "*", tool)))
     return found[-1] if found else None
+
+
+def find_aapt() -> str | None:
+    return find_build_tool("aapt")
 
 
 # --------------------------------------------------------------------------- #
@@ -316,6 +322,96 @@ def keystore_fingerprint(path: pathlib.Path, alias: str, store_pw: str) -> str:
         return ""
     match = re.search(r"SHA256: ([0-9A-Fa-f:]+)", out)
     return match.group(1).replace(":", "").lower() if match else ""
+
+
+def needs_resigning(current: str, ours: str) -> bool:
+    """Whether an APK carries a signature we can read that is not the one we sign with.
+
+    An unreadable signature is left alone rather than guessed at: it means we could
+    not compare it, not that it is wrong.
+    """
+    return bool(current) and bool(ours) and current != ours
+
+
+def fingerprint_audit(repo: pathlib.Path, ours: str) -> tuple[list[str], list[str]]:
+    """Split the indexed APKs into those signed with another key, and those we cannot read."""
+    _, entries = load_index(repo)
+    mismatched, unreadable = [], []
+    for entry in entries:
+        apk = repo / "repo/apk" / entry["apk"]
+        if not apk.exists():
+            continue
+        fingerprint = apk_signing_fingerprint(apk)
+        if not fingerprint:
+            unreadable.append(apk.name)
+        elif needs_resigning(fingerprint, ours):
+            mismatched.append(apk.name)
+    return mismatched, unreadable
+
+
+def resign_apks(repo: pathlib.Path, keystore: pathlib.Path, signing_env: dict,
+                ours: str, report: Report) -> int:
+    """Re-sign published APKs that carry another key, leaving everything else untouched.
+
+    These are the extensions whose upstream moved to the incompatible API (or vanished),
+    so they can never be rebuilt - but repo.json advertises a single
+    signingKeyFingerprint, and that claim should hold for every APK in the index.
+    Re-signing does not recompile anything: only the signature changes, and Tachimanga
+    loads extensions out of the APK rather than installing it as a package, so an
+    extension that loaded before still loads.
+    """
+    apksigner = find_build_tool("apksigner")
+    zipalign = find_build_tool("zipalign")
+    if not (apksigner and zipalign):
+        print("   apksigner/zipalign not in the SDK (set ANDROID_HOME); cannot re-sign")
+        return 0
+
+    _, entries = load_index(repo)
+    signed = 0
+    for entry in entries:
+        apk = repo / "repo/apk" / entry["apk"]
+        if not apk.exists():
+            continue
+        current = apk_signing_fingerprint(apk)
+        if not needs_resigning(current, ours):
+            continue
+        name = entry["pkg"].rsplit(".", 1)[-1]
+        # Sign into a staging file and only put it in place once it verifies, so a
+        # failure can never leave a half-written APK in the index.
+        staged = pathlib.Path(f"/tmp/resigned-{name}.apk")
+        try:
+            run([zipalign, "-f", "-p", "4", str(apk), str(staged)])
+            run([apksigner, "sign", "--ks", str(keystore),
+                 "--ks-key-alias", signing_env["ALIAS"],
+                 "--ks-pass", f"pass:{signing_env['KEY_STORE_PASSWORD']}",
+                 "--key-pass", f"pass:{signing_env['KEY_PASSWORD']}",
+                 str(staged)])
+        except (RuntimeError, OSError) as exc:
+            report.resigned.append({"apk": apk.name, "status": "failed", "detail": str(exc)})
+            print(f"   {name}: could not re-sign, left as it was")
+            continue
+        if apk_signing_fingerprint(staged) != ours or not zipfile.is_zipfile(staged):
+            report.resigned.append({"apk": apk.name, "status": "failed",
+                                    "detail": "re-signed APK did not verify"})
+            print(f"   {name}: re-signed APK did not verify, left as it was")
+            continue
+        shutil.copyfile(staged, apk)
+        staged.unlink()
+        signed += 1
+        report.resigned.append({"apk": apk.name, "status": "signed", "was": current[:12]})
+        print(f"   {name}: re-signed ({current[:12]} -> {ours[:12]})")
+    return signed
+
+
+def sync_repo_fingerprint(repo: pathlib.Path, ours: str) -> bool:
+    """Point repo.json at the key we sign with, so the two cannot drift apart."""
+    path = repo / "repo/repo.json"
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    if doc["meta"].get("signingKeyFingerprint") == ours:
+        return False
+    doc["meta"]["signingKeyFingerprint"] = ours
+    path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -544,6 +640,32 @@ def main() -> int:
                 print(f"   {outcome}: {result.reason}"
                       + (f" -> {result.apk}" if result.apk else "")
                       + (f" [{result.prep}]" if result.prep else ""))
+
+    # Signing is one unit of work: replace any APK still carrying another key, then only
+    # let repo.json claim a key that every APK in the index actually has. Skipped for a
+    # single-module or watch-only run, where auditing the whole repo would be a surprise.
+    if not args.watch_only and not args.only and keystore_fp:
+        print("== signing")
+        resigned = resign_apks(repo, keystore, signing_env, keystore_fp, report)
+        print(f"   {resigned} APK(s) re-signed")
+        mismatched, unreadable = fingerprint_audit(repo, keystore_fp)
+        report.fingerprint = {"expected": keystore_fp, "mismatched": mismatched,
+                              "unreadable": unreadable}
+        if mismatched:
+            failures += 1
+            print(f"   {len(mismatched)} APK(s) still carry another key: {', '.join(mismatched)}")
+        elif unreadable:
+            # Not a mismatch, just something we could not compare - worth saying out loud,
+            # but it should not hold the index back.
+            print(f"   {len(unreadable)} APK(s) have no readable v1 signature: {', '.join(unreadable)}")
+        if not mismatched:
+            if sync_repo_fingerprint(repo, keystore_fp):
+                print(f"   repo.json now advertises {keystore_fp[:12]}")
+                report.fingerprint["repoJson"] = "updated"
+            else:
+                report.fingerprint["repoJson"] = "already current"
+    elif not keystore_fp and not args.watch_only:
+        print("== signing: no keystore fingerprint (keytool unavailable); nothing to check")
 
     # watch pass: no builds, just early warning about upstream moving under us
     for module in manifest["watch"].get("incompatible", []):
