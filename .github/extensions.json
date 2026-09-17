@@ -1,0 +1,60 @@
+{
+  "signing": {
+    "_comment": [
+      "CI-only signing key. Generated once by the workflow with keytool, then committed",
+      "so that every future build has the SAME signature - otherwise each run would produce",
+      "a different one and installed extensions could no longer be updated.",
+      "Its private key and password are deliberately public: the fingerprint declared in",
+      "repo/repo.json is already an Android debug certificate, so this does not weaken the",
+      "trust model, and it means nothing can be lost or rotated by accident.",
+      "To use a private key instead, set the SIGNING_KEY (base64 of a .jks), ALIAS,",
+      "KEY_STORE_PASSWORD and KEY_PASSWORD repository secrets; they take precedence."
+    ],
+    "keystoreFile": "signing/signingkey.jks.b64",
+    "alias": "nutypo-extensions",
+    "storePassword": "nutypo-extensions",
+    "keyPassword": "nutypo-extensions",
+    "dname": "CN=nutypo extensions, O=nutypo, C=US",
+    "validityDays": 10950
+  },
+
+  "gates": {
+    "_comment": [
+      "An APK is only published if every gate passes. Tachimanga runs the classic",
+      "Mihon/Tachiyomi extension API; extensions compiled against keiyoushi extensions-lib",
+      "1.6 (KeiSource) require Mihon 0.20.1+ and fail on Tachimanga, and an app-side minSdk",
+      "above 21 is not supported either.",
+      "These are checked on the built APK, so they cannot be fooled by build-config changes."
+    ],
+    "rejectDexSymbols": ["KeiSource"],
+    "requireDexSymbols": ["eu/kanade/tachiyomi/source/online"],
+    "maxMinSdk": 21
+  },
+
+  "extensions": [
+    { "module": "src/en/manga18club", "track": "main" },
+    { "module": "src/en/mangaforfreecom", "track": "main" },
+    { "module": "src/es/templescanesp", "track": "main" },
+    { "module": "src/zh/bakamh", "track": "main" },
+    { "module": "src/zh/hanime1", "track": "main" },
+    { "module": "src/zh/jinmantiantang", "track": "main" },
+    { "module": "src/zh/zaimanhua", "track": "main" },
+    {
+      "module": "src/zh/wnacg",
+      "ref": "34c463a1fe509bdcb623ac02b6574ec17610beda",
+      "patch": "patch-wnacg.py",
+      "_comment": "Upstream moved to libVersion 1.6 / KeiSource on 2026-09-11, so this is pinned to the last revision that still uses the classic API, with the ?verify= image-parsing fix backported onto it."
+    }
+  ],
+
+  "watch": {
+    "_comment": [
+      "Checked on every run without building anything, to give early warning that a module",
+      "changed in a way that affects us: migrated to the incompatible API, moved to a newer",
+      "classic revision we could pick up, or disappeared (upstream removes dead sites)."
+    ],
+    "incompatible": ["src/zh/baozimanhua", "src/zh/baozimhorg", "src/zh/bilimanga", "src/zh/komiic", "src/zh/mycomic"],
+    "dropped": ["src/en/manga18fx", "src/zh/happymh"],
+    "custom": ["komikindolive", "eighteenmh", "ho5ho", "ikanwzd", "mangacopy", "pawomh"]
+  }
+}
