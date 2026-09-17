@@ -35,8 +35,10 @@ Custom extension repository for [Tachimanga](https://tachimanga.app/).
 Open Tachimanga, go to **More → Extensions → Extension Repositories → Add Repository**, and paste the following URL:
 
 ```
-https://raw.githubusercontent.com/leijie115/tachimanga/main/repo/index.min.json
+https://raw.githubusercontent.com/nutypo/tachimanga/main/repo/index.min.json
 ```
+
+Most sources here are marked NSFW and stay hidden until you turn on **More → Settings → "Show NSFW extensions and sources"**.
 
 ### 2. Install Extensions
 
@@ -85,8 +87,10 @@ After installation, go to **Browse → Sources**, select the source you installe
 打开 Tachimanga，进入 **更多 → 插件 → 扩展仓库 → 添加仓库**，粘贴以下地址：
 
 ```
-https://raw.githubusercontent.com/leijie115/tachimanga/main/repo/index.min.json
+https://raw.githubusercontent.com/nutypo/tachimanga/main/repo/index.min.json
 ```
+
+这里的大多数图源属于 NSFW，需要在 **更多 → 设置 → "显示 NSFW 插件和图源"** 中开启后才会显示。
 
 ### 2. 安装扩展
 
