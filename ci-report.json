@@ -1,11 +1,79 @@
 {
-  "generatedAt": "2026-09-17T05:38:12Z",
-  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/35186490880",
+  "generatedAt": "2026-09-17T05:49:43Z",
+  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/35187250741",
   "keystore": {
     "source": "committed signing/signingkey.jks.b64",
     "alias": "nutypo-extensions",
     "sha256": "569d467be83f1131c62e164752db02873a0211a46d82563b6fbe56c3d975f8f4"
   },
+  "fingerprint": {
+    "expected": "569d467be83f1131c62e164752db02873a0211a46d82563b6fbe56c3d975f8f4",
+    "mismatched": [],
+    "unreadable": [],
+    "repoJson": "already current"
+  },
+  "resigned": [
+    {
+      "apk": "tachiyomi-en.komikindolive-v1.4.30.apk",
+      "status": "signed",
+      "was": "b4383311466f"
+    },
+    {
+      "apk": "tachiyomi-en.manga18fx-v1.4.50.apk",
+      "status": "signed",
+      "was": "800b07a26b79"
+    },
+    {
+      "apk": "tachiyomi-zh.ikanwzd-v1.4.2.apk",
+      "status": "signed",
+      "was": "800b07a26b79"
+    },
+    {
+      "apk": "tachiyomi-zh.eighteenmh-v1.4.4.apk",
+      "status": "signed",
+      "was": "b4383311466f"
+    },
+    {
+      "apk": "tachiyomi-zh.baozimanhua-v1.4.25.apk",
+      "status": "signed",
+      "was": "800b07a26b79"
+    },
+    {
+      "apk": "tachiyomi-zh.baozimhorg-v1.4.35.apk",
+      "status": "signed",
+      "was": "800b07a26b79"
+    },
+    {
+      "apk": "tachiyomi-zh.mangacopy-v1.4.1.apk",
+      "status": "signed",
+      "was": "800b07a26b79"
+    },
+    {
+      "apk": "tachiyomi-zh.ho5ho-v1.4.47.apk",
+      "status": "signed",
+      "was": "b4383311466f"
+    },
+    {
+      "apk": "tachiyomi-zh.bilimanga-v1.4.6.apk",
+      "status": "signed",
+      "was": "800b07a26b79"
+    },
+    {
+      "apk": "tachiyomi-zh.komiic-v1.4.4.apk",
+      "status": "signed",
+      "was": "b4383311466f"
+    },
+    {
+      "apk": "tachiyomi-zh.mycomic-v1.4.2.apk",
+      "status": "signed",
+      "was": "b4383311466f"
+    },
+    {
+      "apk": "tachiyomi-zh.pawomh-v1.4.2.apk",
+      "status": "signed",
+      "was": "b4383311466f"
+    }
+  ],
   "results": [
     {
       "module": "src/en/manga18club",
