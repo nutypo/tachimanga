@@ -24,14 +24,29 @@ out="${1:-$HOME/tachimanga-signing}"
 keystore="$out/signingkey.jks"
 b64="$out/signingkey.jks.b64"
 
-# macOS ships a /usr/bin/keytool that exists but fails at runtime when no JDK is
-# installed, so check that it actually runs rather than that it is on PATH.
-keytool -help >/dev/null 2>&1 || {
+# macOS ships a /usr/bin/keytool that exists but fails at runtime when no JDK is installed,
+# so check that it actually runs rather than that it is on PATH. Homebrew's openjdk is
+# keg-only, so it usually is not on PATH either - look where it installs itself.
+keytool_bin=""
+if keytool -help >/dev/null 2>&1; then
+    keytool_bin=keytool
+fi
+if [ -z "$keytool_bin" ]; then
+    brew_prefix="$(brew --prefix openjdk 2>/dev/null || true)"
+    for prefix in "$brew_prefix" /opt/homebrew/opt/openjdk /usr/local/opt/openjdk; do
+        if [ -n "$prefix" ] && [ -x "$prefix/bin/keytool" ] && "$prefix/bin/keytool" -help >/dev/null 2>&1; then
+            keytool_bin="$prefix/bin/keytool"
+            break
+        fi
+    done
+fi
+
+if [ -z "$keytool_bin" ]; then
     echo "No working JDK found (keytool does not run), and it ships with one:" >&2
     echo "    brew install openjdk            # macOS" >&2
     echo "    apt-get install default-jre-headless   # Debian/Ubuntu" >&2
     exit 1
-}
+fi
 
 # Keep these in step with .github/extensions.json rather than repeating them here.
 eval "$(cd "$repo" && python3 - <<'PY'
@@ -48,7 +63,7 @@ key_pw="${KEY_PASSWORD:-$keyPassword}"
 mkdir -p "$out"
 rm -f "$keystore" "$b64"
 
-keytool -genkeypair \
+$keytool_bin -genkeypair \
     -keystore "$keystore" -alias "$alias_" \
     -keyalg RSA -keysize 2048 -validity "$validityDays" \
     -storepass "$store_pw" -keypass "$key_pw" -dname "$dname"
@@ -60,7 +75,7 @@ echo
 echo "wrote $keystore"
 echo "wrote $b64"
 echo
-keytool -list -v -keystore "$keystore" -alias "$alias_" -storepass "$store_pw" \
+$keytool_bin -list -v -keystore "$keystore" -alias "$alias_" -storepass "$store_pw" \
     | grep -i "SHA256:" | sed 's/^/  /'
 echo
 echo "Next:"
