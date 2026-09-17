@@ -160,7 +160,7 @@ def test_publishing(manifest: dict) -> None:
         check("a newer build is published",
               be.decide_publish(repo, newer, running)[1], "updates 1.4.23 -> 1.4.24")
 
-        name = be.publish(repo, "src/zh/wnacg", newer)
+        name = be.publish(repo, "src/zh/wnacg", newer, 3)
         check("the APK is named after the module and version",
               name, "tachiyomi-zh.wnacg-v1.4.24.apk")
         entry = next(e for e in json.loads((repo / "repo/index.min.json").read_text(encoding="utf-8"))
@@ -175,6 +175,42 @@ def test_publishing(manifest: dict) -> None:
               3)
 
 
+def test_retention(manifest: dict) -> None:
+    check("builds are ordered by version, not as text",
+          be.version_key("tachiyomi-zh.x-v1.4.10.apk") > be.version_key("tachiyomi-zh.x-v1.4.9.apk"),
+          True)
+
+    cap = manifest["retention"]["keepPrevious"]
+    check_true("keepPrevious leaves room to roll back", cap >= 1)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = pathlib.Path(tmp)
+        shutil.copytree(REPO / "repo", repo / "repo")
+        current = "tachiyomi-zh.eighteenmh-v1.4.4.apk"
+        before = sorted(p.name for p in (repo / "repo/apk").glob("*eighteenmh*"))
+
+        # eighteenmh is frozen (no upstream source), so this is the one place its older
+        # builds are the only rollback route - the cap must not eat the indexed build.
+        removed = be.prune_old_apks(repo, "src/zh/eighteenmh", current, 3)
+        check("a full history inside the cap is left alone", (removed, before), ([], before))
+
+        removed = be.prune_old_apks(repo, "src/zh/eighteenmh", current, 1)
+        check("beyond the cap the oldest builds go", removed,
+              ["tachiyomi-zh.eighteenmh-v1.4.2.apk", "tachiyomi-zh.eighteenmh-v1.4.1.apk"])
+        check("the published build and the cap survive",
+              sorted(p.name for p in (repo / "repo/apk").glob("*eighteenmh*")),
+              ["tachiyomi-zh.eighteenmh-v1.4.3.apk", current])
+
+        check("a negative cap keeps everything",
+              be.prune_old_apks(repo, "src/zh/eighteenmh", current, -1), [])
+
+        # An unexpected filename must not make us guess which build is the oldest.
+        odd = repo / "repo/apk/tachiyomi-zh.odd-vcustom.apk"
+        odd.write_bytes(b"")
+        check("an unreadable version stops pruning", be.prune_old_apks(repo, "src/zh/odd", "", 0), [])
+        check_true("and leaves the file in place", odd.exists())
+
+
 def test_manifest(manifest: dict) -> None:
     """The index and the manifest have to agree, or a build publishes nothing."""
     entries = json.loads((REPO / "repo/index.min.json").read_text(encoding="utf-8"))
@@ -187,6 +223,14 @@ def test_manifest(manifest: dict) -> None:
             check_true(f"{entry['module']}'s patch is committed",
                        (HERE / entry["patch"]).exists())
 
+    # These lists are only useful while they name things that exist. Whether a path is
+    # still upstream is checked by the watch pass every run (and would show up as
+    # "dropped" in ci-report.json); here we only assert the offline half, which is that
+    # each name is something we actually ship.
+    for name in manifest["watch"].get("custom", []):
+        check_true(f"{name} is one of the extensions we ship",
+                   any(e["pkg"].rsplit(".", 1)[-1] == name for e in entries))
+
 
 def main() -> int:
     manifest = json.loads((REPO / ".github/extensions.json").read_text(encoding="utf-8"))
@@ -194,6 +238,7 @@ def main() -> int:
                      ("gates", test_gates),
                      ("module mapping", lambda _m: test_module_mapping()),
                      ("publishing", test_publishing),
+                     ("retention", test_retention),
                      ("manifest", test_manifest)):
         print(f"\n== {name}")
         fn(manifest)

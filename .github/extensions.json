@@ -57,14 +57,29 @@
     }
   ],
 
+  "retention": {
+    "_comment": [
+      "A previous build is kept when an extension is replaced, so rolling back is a one-line",
+      "index change. This caps how many are kept per extension; publishing a newer one drops",
+      "the oldest beyond the cap, so the repository cannot grow without bound.",
+      "-1 keeps every previous build (and is what a missing key falls back to)."
+    ],
+    "keepPrevious": 3
+  },
+
   "watch": {
     "_comment": [
-      "Checked on every run without building anything, to give early warning that a module",
-      "changed in a way that affects us: migrated to the incompatible API, moved to a newer",
-      "classic revision we could pick up, or disappeared (upstream removes dead sites)."
+      "Checked on every run without building anything, to give early warning about things",
+      "that affect us: a module migrating to the incompatible API, a custom source upstream",
+      "has since added, or a module we carry disappearing from upstream.",
+      "Upstream moves modules between language directories, so these are the paths as they",
+      "stand now - src/all/manga18fx was src/en/manga18fx until it changed language."
     ],
-    "incompatible": ["src/zh/baozimanhua", "src/zh/baozimhorg", "src/zh/bilimanga", "src/zh/komiic", "src/zh/mycomic"],
-    "dropped": ["src/en/manga18fx", "src/zh/happymh"],
+    "incompatible": [
+      "src/zh/baozimanhua", "src/zh/baozimhorg", "src/zh/bilimanga", "src/zh/komiic",
+      "src/zh/mycomic", "src/all/manga18fx"
+    ],
+    "dropped": [],
     "custom": ["komikindolive", "eighteenmh", "ho5ho", "ikanwzd", "mangacopy", "pawomh"]
   }
 }

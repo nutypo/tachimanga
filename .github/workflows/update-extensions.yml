@@ -100,7 +100,7 @@ jobs:
           print("|---|---|---|---|")
           for r in report["results"]:
               print(f"| `{r['module']}` | {r['status']} | {r['version']} | {r['reason']} |")
-          notable = [w for w in report["watch"] if w["status"] in ("CHANGED", "returned", "dropped")]
+          notable = [w for w in report["watch"] if w["status"] in ("CHANGED", "returned", "dropped", "in-upstream-buildable")]
           if notable:
               print("\n**Upstream changes worth a look:**\n")
               for w in notable:
@@ -121,4 +121,10 @@ jobs:
           fi
           MSG=$(python3 -c "import json;r=json.load(open('ci-report.json'));p=[x['pkg'].rsplit('.',1)[-1] for x in r['results'] if x['status']=='published'];print('Update extensions: '+', '.join(p) if p else 'Update extensions: housekeeping')")
           git commit -m "$MSG"
-          git push origin HEAD:main
+          # A push made while this run was still working would otherwise reject ours and
+          # throw the publish away, so replay the commit on top of the newer main.
+          if ! git push origin HEAD:main; then
+            echo "push rejected; replaying on top of the latest main"
+            GIT_EDITOR=true git pull --rebase --autostash --quiet origin main
+            git push origin HEAD:main
+          fi

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import base64
 import datetime
+import difflib
 import glob
 import json
 import os
@@ -177,7 +178,16 @@ def load_index(repo: pathlib.Path) -> tuple[pathlib.Path, list]:
     return path, json.loads(path.read_text(encoding="utf-8"))
 
 
-def publish(repo: pathlib.Path, module: str, info: dict) -> str:
+def apk_pattern(module: str) -> str:
+    """Filenames published for a module, e.g. tachiyomi-zh.wnacg-v1.4.23.apk.
+
+    The `-v` is what keeps a module from matching a longer-named sibling.
+    """
+    lang, name = module_parts(module)
+    return f"tachiyomi-{lang}.{name}-v*.apk"
+
+
+def publish(repo: pathlib.Path, module: str, info: dict, keep_previous: int) -> str:
     """Copy the built APK into repo/apk/ and point the index at it."""
     lang, name = module_parts(module)
     apk_dir = repo / "repo/apk"
@@ -194,13 +204,47 @@ def publish(repo: pathlib.Path, module: str, info: dict) -> str:
     matches[0]["version"] = info["version"]
     index_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    for stale in apk_dir.glob(f"tachiyomi-{lang}.{name}-*-v*.apk"):
-        if stale.name != filename:
-            # kept deliberately: makes rolling back to the previous build a
-            # one-line index change (and matches how this repo already stores
-            # older versions of an extension).
-            print(f"   keeping previous build {stale.name}")
+    pattern = apk_pattern(module)
+    previous = sorted(p.name for p in apk_dir.glob(pattern) if p.name != filename)
+    for removed in prune_old_apks(repo, module, filename, keep_previous):
+        previous.remove(removed)
+        print(f"   dropped old build {removed}")
+    if previous:
+        # Kept deliberately: rolling back to one of these is a one-line index change,
+        # which matters most for the extensions this pipeline cannot rebuild.
+        print(f"   keeping previous build(s) {', '.join(previous)}")
     return filename
+
+
+def version_key(filename: str) -> tuple:
+    """Order builds by the version in their filename, so v1.4.10 outranks v1.4.9."""
+    match = re.search(r"-v([0-9][0-9A-Za-z.]*)\.apk$", filename)
+    if not match:
+        return ()
+    return tuple(int(part) for part in re.findall(r"\d+", match.group(1)))
+
+
+def prune_old_apks(repo: pathlib.Path, module: str, current: str, keep: int) -> list[str]:
+    """Delete previous builds beyond the rollback depth we promise to keep.
+
+    A negative `keep` keeps everything. Nothing is ever deleted unless every
+    candidate's version parses and the currently published build is excluded, so an
+    unexpected filename leaves the directory alone rather than guessing at the order.
+    """
+    if keep < 0:
+        return []
+    builds = [p for p in (repo / "repo/apk").glob(apk_pattern(module))
+              if p.name != current]
+    keys = {p.name: version_key(p.name) for p in builds}
+    if any(not key for key in keys.values()):
+        print(f"   keeping {len(builds)} old build(s): version could not be compared")
+        return []
+    builds.sort(key=lambda p: keys[p.name], reverse=True)
+    removed = []
+    for stale in builds[keep:]:
+        stale.unlink()
+        removed.append(stale.name)
+    return removed
 
 
 def decide_publish(repo: pathlib.Path, info: dict, keystore_fp: str) -> tuple[bool, str]:
@@ -289,6 +333,29 @@ def clone_upstream(ref: str, workdir: pathlib.Path) -> pathlib.Path:
     return dest
 
 
+def ensure_upstream_tree(workdir: pathlib.Path) -> pathlib.Path:
+    """Upstream main as a browsable tree, reusing the build loop's clone if there is one.
+
+    The watch pass only needs paths, so a --no-checkout clone is enough: it fetches
+    trees without any of the extension sources.
+    """
+    dest = workdir / "upstream-main"  # same path clone_upstream uses for ref main
+    if (dest / ".git").exists():
+        return dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    run(["git", "clone", "--filter=blob:none", "--no-checkout", "--depth", "1",
+         "--quiet", UPSTREAM_URL, str(dest)])
+    return dest
+
+
+def upstream_modules(upstream: pathlib.Path) -> list[str]:
+    """Every extension module in upstream's tree, e.g. src/zh/wnacg."""
+    listed = run(["git", "-C", str(upstream), "ls-tree", "-r", "--name-only", "HEAD", "src"]).stdout
+    build_files = [p for p in listed.splitlines()
+                   if p.endswith(("build.gradle.kts", "build.gradle"))]
+    return sorted({p.rsplit("/", 1)[0] for p in build_files})
+
+
 def reset_module(upstream: pathlib.Path, ref: str, module: str) -> None:
     """Drop a previous entry's patch and build outputs before building again."""
     subprocess.run(["git", "-C", str(upstream), "checkout", "--force", "--quiet", ref, "--", module],
@@ -370,7 +437,8 @@ def effective_gates(manifest: dict) -> dict:
 
 
 def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Path,
-                gates: dict, min_sdk: dict, signing_env: dict, keystore_fp: str) -> tuple[Result, str]:
+                gates: dict, min_sdk: dict, keep_previous: int, signing_env: dict,
+                keystore_fp: str) -> tuple[Result, str]:
     """Build one manifest entry and publish it if it passes the gates."""
     module = entry["module"]
     result = Result(module=module, ref=ref)
@@ -413,7 +481,7 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
             result.reason = why
             return result, "up-to-date"
 
-        result.apk = publish(repo, module, info)
+        result.apk = publish(repo, module, info, keep_previous)
         result.status = "published"
         result.reason = why
         return result, "published"
@@ -449,6 +517,8 @@ def main() -> int:
 
     min_sdk = manifest["targetMinSdk"]
     gates = effective_gates(manifest)
+    # Absent key keeps every previous build, which is what this did before it was capped.
+    keep_previous = manifest.get("retention", {}).get("keepPrevious", -1)
 
     entries = manifest["extensions"]
     if args.only:
@@ -468,7 +538,7 @@ def main() -> int:
             for entry in group:
                 print(f"-> {entry['module']}")
                 result, outcome = build_entry(entry, upstream, ref, repo, gates,
-                                              min_sdk, signing_env, keystore_fp)
+                                              min_sdk, keep_previous, signing_env, keystore_fp)
                 failures += outcome == "failed"
                 report.results.append(asdict(result))
                 print(f"   {outcome}: {result.reason}"
@@ -500,13 +570,41 @@ def main() -> int:
                              "detail": f"pinned at {entry['ref'][:12]}",
                              "newestUpstreamCommit": newest_commit(entry["module"])})
 
+    # Custom sources were built by hand and have no upstream module to track, so the
+    # only real news is upstream having picked one up - we could then build it from
+    # source instead of shipping an APK that can never be updated again.
+    modules = upstream_modules(ensure_upstream_tree(workdir))
+    by_name = {module.rsplit("/", 1)[-1]: module for module in modules}
+    _, indexed = load_index(repo)
+    for name in manifest["watch"].get("custom", []):
+        entry = next((e for e in indexed if e["pkg"].rsplit(".", 1)[-1] == name), None)
+        upstream_module = by_name.get(name)
+        if upstream_module:
+            cfg = module_config(upstream_module)
+            buildable = cfg.get("legacyPlugin") or cfg.get("libVersion") == "1.4"
+            report.watch.append({
+                "module": name,
+                "status": "in-upstream-buildable" if buildable else "in-upstream-incompatible",
+                "detail": f"upstream has {upstream_module} (libVersion {cfg.get('libVersion')}); "
+                          + ("add it to `extensions` to build it" if buildable
+                             else "still needs a patch to run on Tachimanga"),
+            })
+        else:
+            near = difflib.get_close_matches(name, list(by_name), n=2, cutoff=0.75)
+            report.watch.append({
+                "module": name,
+                "status": "no-upstream-module",
+                "detail": f"frozen at v{entry['version'] if entry else '?'}; no upstream module"
+                          + (f", closest names: {', '.join(near)}" if near else ""),
+            })
+
     (repo / "ci-report.json").write_text(
         json.dumps(asdict(report), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     published = [r for r in report.results if r["status"] == "published"]
     print(f"\n{len(published)} published, {failures} failed")
     for row in report.watch:
-        if row["status"] in ("CHANGED", "returned", "dropped"):
+        if row["status"] in ("CHANGED", "returned", "dropped", "in-upstream-buildable"):
             print(f"watch: {row['module']} -> {row['status']}: {row['detail']}")
     return 1 if failures else 0
 

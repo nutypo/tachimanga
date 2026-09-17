@@ -15,7 +15,6 @@ Custom extension repository for [Tachimanga](https://tachimanga.app/).
 | GoDa漫画 (BaozimhOrg) | 中文 | No | https://baozimh.org |
 | 拷貝漫畫 (MangaCopy) | 中文 | Yes | https://www.mangacopy.com |
 | Hanime1 | 中文 | Yes | https://hanime1.me |
-| 嗨皮漫画 (HappyMH) | 中文 | No | https://m.happymh.com |
 | Ho5Ho | 中文 | Yes | https://www.ho5ho.com |
 | 哔哩漫画 (BiliManga) | 中文 | Yes | https://www.bilimanga.net |
 | Komiic | 中文 | Yes | https://komiic.com |
@@ -67,7 +66,6 @@ After installation, go to **Browse → Sources**, select the source you installe
 | GoDa漫画 (BaozimhOrg) | 中文 | 否 | https://baozimh.org |
 | 拷貝漫畫 (MangaCopy) | 中文 | 是 | https://www.mangacopy.com |
 | Hanime1 | 中文 | 是 | https://hanime1.me |
-| 嗨皮漫画 (HappyMH) | 中文 | 否 | https://m.happymh.com |
 | Ho5Ho | 中文 | 是 | https://www.ho5ho.com |
 | 哔哩漫画 (BiliManga) | 中文 | 是 | https://www.bilimanga.net |
 | Komiic | 中文 | 是 | https://komiic.com |
