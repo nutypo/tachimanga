@@ -1,0 +1,129 @@
+name: Build WNACG
+
+# Why this workflow exists
+# ------------------------
+# The wnacg APK published in repo/apk/ was built from a revision that routes
+# every request through the deprecated `network.cloudflareClient` API. In
+# Tachimanga that opens the Cloudflare/WebView bypass flow ("Trying to bypass
+# Cloudflare"), which never finishes, because the site serves no Cloudflare
+# challenge - it just wraps the real gallery HTML in `document.writeln(...)`
+# JavaScript. On top of that, the old image regex drops the mandatory
+# `?verify=...` signature from the wnimg CDN URLs, which returns HTTP 403.
+#
+# This workflow builds the last revision that
+#   (a) no longer uses `network.cloudflareClient` (removed in #15988), and
+#   (b) still uses the classic extension API that Tachimanga implements, rather
+#       than the KeiSource 1.6 API that requires Mihon 0.20.1+,
+# then backports upstream's image-parsing fix (#18896) via
+# .github/scripts/patch-wnacg.py. The result needs no WebView at all: it parses
+# the image URLs straight out of the response body, signature included.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   SIGNING_KEY          base64 of the keystore:  base64 -i keystore.jks | pbcopy
+#   ALIAS                key alias
+#   KEY_STORE_PASSWORD   keystore password
+#   KEY_PASSWORD         key password
+#
+# Two signing modes:
+#   * SIGNING_KEY set  -> the APK is signed with that keystore. Use the one whose
+#     fingerprint is declared in repo/repo.json (b43833...) and the published APK
+#     is trusted by clients. Note: this repo's existing APKs were signed on a
+#     machine that is not available any more, so unless you have that keystore
+#     you cannot match b43833 - see the signing notes in the README.
+#   * SIGNING_KEY unset -> Gradle falls back to its own throwaway debug keystore
+#     (see PluginExtensionLegacy: signingConfig = release if signingkey.jks
+#     exists, else debug). The build still succeeds and the APK is installable,
+#     but the signature will NOT match the declared fingerprint, so clients that
+#     verify fingerprints will reject it, and each run produces a different
+#     signature. Useful to test whether the extension itself works.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/patch-wnacg.py
+      - .github/workflows/build-wnacg.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-wnacg
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_REPO: keiyoushi/extensions-source
+  UPSTREAM_SHA: 34c463a1fe509bdcb623ac02b6574ec17610beda
+
+jobs:
+  build:
+    name: Build and publish WNACG
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+        with:
+          path: self
+
+      - name: Check out extension sources at the pinned revision
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UPSTREAM_REPO }}
+          ref: ${{ env.UPSTREAM_SHA }}
+          path: upstream
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Apply WNACG fixes
+        run: python3 self/.github/scripts/patch-wnacg.py upstream
+
+      - name: Prepare signing key
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          if [ -n "$SIGNING_KEY" ]; then
+            printf '%s' "$SIGNING_KEY" | base64 -d > upstream/signingkey.jks
+            echo "Signing with the keystore from the SIGNING_KEY secret."
+          else
+            echo "::warning::SIGNING_KEY is not set, so Gradle will sign with its throwaway debug keystore. The signature will not match repo.json's signingKeyFingerprint (b43833...), so fingerprint-verifying clients may reject the APK, and each run's signature differs."
+          fi
+
+      - name: Build WNACG
+        working-directory: upstream
+        env:
+          ALIAS: ${{ secrets.ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :src:zh:wnacg:assembleRelease
+
+      - name: Publish APK and update the index
+        run: python3 self/.github/scripts/publish-wnacg.py upstream self
+
+      - name: Upload APK as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wnacg-apk
+          path: self/repo/apk/tachiyomi-zh.wnacg-*.apk
+          retention-days: 14
+
+      - name: Commit and push
+        working-directory: self
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repo/
+          if git diff --cached --quiet; then
+            echo "nothing to publish"
+          else
+            git commit -m "Update WNACG to v$WNACG_VERSION"
+            git push origin HEAD:main
+          fi
