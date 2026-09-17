@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-17T05:21:32Z",
-  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/35185399548",
+  "generatedAt": "2026-09-17T05:38:12Z",
+  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/35186490880",
   "keystore": {
     "source": "committed signing/signingkey.jks.b64",
     "alias": "nutypo-extensions",
@@ -10,85 +10,85 @@
     {
       "module": "src/en/manga18club",
       "ref": "main",
-      "status": "published",
-      "reason": "updates 1.4.1 -> 1.4.3",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk lowered to 21",
       "pkg": "eu.kanade.tachiyomi.extension.en.manga18club",
       "version": "1.4.3",
       "code": 104003,
-      "apk": "tachiyomi-en.manga18club-v1.4.3.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/en/mangaforfreecom",
       "ref": "main",
-      "status": "published",
-      "reason": "updates 1.4.47 -> 1.4.54",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.en.mangaforfreecom",
       "version": "1.4.54",
       "code": 104054,
-      "apk": "tachiyomi-en.mangaforfreecom-v1.4.54.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/es/templescanesp",
       "ref": "main",
-      "status": "published",
-      "reason": "updates 1.4.53 -> 1.4.64",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.es.templescanesp",
       "version": "1.4.64",
       "code": 104064,
-      "apk": "tachiyomi-es.templescanesp-v1.4.64.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/bakamh",
       "ref": "main",
-      "status": "published",
-      "reason": "updates 1.4.51 -> 1.4.62",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.bakamh",
       "version": "1.4.62",
       "code": 104062,
-      "apk": "tachiyomi-zh.bakamh-v1.4.62.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/hanime1",
       "ref": "main",
-      "status": "published",
-      "reason": "updates 1.4.1 -> 1.4.3",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.hanime1",
       "version": "1.4.3",
       "code": 104003,
-      "apk": "tachiyomi-zh.hanime1-v1.4.3.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/jinmantiantang",
       "ref": "main",
-      "status": "published",
-      "reason": "updates 1.4.53 -> 1.4.58",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.jinmantiantang",
       "version": "1.4.58",
       "code": 104058,
-      "apk": "tachiyomi-zh.jinmantiantang-v1.4.58.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/zaimanhua",
       "ref": "main",
-      "status": "published",
-      "reason": "updates 1.4.17 -> 1.4.19",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.zaimanhua",
       "version": "1.4.19",
       "code": 104019,
-      "apk": "tachiyomi-zh.zaimanhua-v1.4.19.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
@@ -131,14 +131,9 @@
       "detail": "libVersion 1.6"
     },
     {
-      "module": "src/en/manga18fx",
-      "status": "still-dropped",
-      "detail": "checked upstream main"
-    },
-    {
-      "module": "src/zh/happymh",
-      "status": "still-dropped",
-      "detail": "checked upstream main"
+      "module": "src/all/manga18fx",
+      "status": "still-incompatible",
+      "detail": "libVersion 1.6"
     },
     {
       "module": "src/zh/wnacg",
@@ -149,6 +144,36 @@
         "date": "2026-09-11",
         "message": "WNACG: Add title blacklist, migrate to KeiSource 1.6, and fix image parsing (#18896)"
       }
+    },
+    {
+      "module": "komikindolive",
+      "status": "no-upstream-module",
+      "detail": "frozen at v1.4.30; no upstream module, closest names: komikindoid, komikindo"
+    },
+    {
+      "module": "eighteenmh",
+      "status": "no-upstream-module",
+      "detail": "frozen at v1.4.4; no upstream module, closest names: eighteenmanhua"
+    },
+    {
+      "module": "ho5ho",
+      "status": "no-upstream-module",
+      "detail": "frozen at v1.4.47; no upstream module"
+    },
+    {
+      "module": "ikanwzd",
+      "status": "no-upstream-module",
+      "detail": "frozen at v1.4.2; no upstream module"
+    },
+    {
+      "module": "mangacopy",
+      "status": "no-upstream-module",
+      "detail": "frozen at v1.4.1; no upstream module, closest names: mangastop, mangayi"
+    },
+    {
+      "module": "pawomh",
+      "status": "no-upstream-module",
+      "detail": "frozen at v1.4.2; no upstream module"
     }
   ]
 }
