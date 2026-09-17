@@ -1,0 +1,146 @@
+{
+  "generatedAt": "2026-09-17T05:13:18Z",
+  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/35184865496",
+  "keystore": {
+    "source": "generated -> signing/signingkey.jks.b64",
+    "alias": "nutypo-extensions",
+    "sha256": "569d467be83f1131c62e164752db02873a0211a46d82563b6fbe56c3d975f8f4"
+  },
+  "results": [
+    {
+      "module": "src/en/manga18club",
+      "ref": "main",
+      "status": "skipped",
+      "reason": "minSdk 26 exceeds 21",
+      "pkg": "eu.kanade.tachiyomi.extension.en.manga18club",
+      "version": "1.4.3",
+      "code": 104003,
+      "apk": "",
+      "log_tail": ""
+    },
+    {
+      "module": "src/en/mangaforfreecom",
+      "ref": "main",
+      "status": "skipped",
+      "reason": "minSdk 26 exceeds 21",
+      "pkg": "eu.kanade.tachiyomi.extension.en.mangaforfreecom",
+      "version": "1.4.54",
+      "code": 104054,
+      "apk": "",
+      "log_tail": ""
+    },
+    {
+      "module": "src/es/templescanesp",
+      "ref": "main",
+      "status": "skipped",
+      "reason": "minSdk 26 exceeds 21",
+      "pkg": "eu.kanade.tachiyomi.extension.es.templescanesp",
+      "version": "1.4.64",
+      "code": 104064,
+      "apk": "",
+      "log_tail": ""
+    },
+    {
+      "module": "src/zh/bakamh",
+      "ref": "main",
+      "status": "skipped",
+      "reason": "minSdk 26 exceeds 21",
+      "pkg": "eu.kanade.tachiyomi.extension.zh.bakamh",
+      "version": "1.4.62",
+      "code": 104062,
+      "apk": "",
+      "log_tail": ""
+    },
+    {
+      "module": "src/zh/hanime1",
+      "ref": "main",
+      "status": "skipped",
+      "reason": "minSdk 26 exceeds 21",
+      "pkg": "eu.kanade.tachiyomi.extension.zh.hanime1",
+      "version": "1.4.3",
+      "code": 104003,
+      "apk": "",
+      "log_tail": ""
+    },
+    {
+      "module": "src/zh/jinmantiantang",
+      "ref": "main",
+      "status": "skipped",
+      "reason": "minSdk 26 exceeds 21",
+      "pkg": "eu.kanade.tachiyomi.extension.zh.jinmantiantang",
+      "version": "1.4.58",
+      "code": 104058,
+      "apk": "",
+      "log_tail": ""
+    },
+    {
+      "module": "src/zh/zaimanhua",
+      "ref": "main",
+      "status": "skipped",
+      "reason": "minSdk 26 exceeds 21",
+      "pkg": "eu.kanade.tachiyomi.extension.zh.zaimanhua",
+      "version": "1.4.19",
+      "code": 104019,
+      "apk": "",
+      "log_tail": ""
+    },
+    {
+      "module": "src/zh/wnacg",
+      "ref": "34c463a1fe509bdcb623ac02b6574ec17610beda",
+      "status": "published",
+      "reason": "published APK was signed with a different key",
+      "pkg": "eu.kanade.tachiyomi.extension.zh.wnacg",
+      "version": "1.4.23",
+      "code": 23,
+      "apk": "tachiyomi-zh.wnacg-v1.4.23.apk",
+      "log_tail": ""
+    }
+  ],
+  "watch": [
+    {
+      "module": "src/zh/baozimanhua",
+      "status": "still-incompatible",
+      "detail": "libVersion 1.6"
+    },
+    {
+      "module": "src/zh/baozimhorg",
+      "status": "still-incompatible",
+      "detail": "libVersion 1.6"
+    },
+    {
+      "module": "src/zh/bilimanga",
+      "status": "still-incompatible",
+      "detail": "libVersion 1.6"
+    },
+    {
+      "module": "src/zh/komiic",
+      "status": "still-incompatible",
+      "detail": "libVersion 1.6"
+    },
+    {
+      "module": "src/zh/mycomic",
+      "status": "still-incompatible",
+      "detail": "libVersion 1.6"
+    },
+    {
+      "module": "src/en/manga18fx",
+      "status": "still-dropped",
+      "detail": "checked upstream main"
+    },
+    {
+      "module": "src/zh/happymh",
+      "status": "still-dropped",
+      "detail": "checked upstream main"
+    },
+    {
+      "module": "src/zh/wnacg",
+      "status": "pinned",
+      "detail": "pinned at 34c463a1fe50",
+      "newestUpstreamCommit": {
+        "sha": "019b6c5bca9e",
+        "date": "2026-09-11",
+        "message": "WNACG: Add title blacklist, migrate to KeiSource 1.6, and fix image parsing (#18896)"
+      }
+    }
+  ]
+}
