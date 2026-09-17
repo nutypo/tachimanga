@@ -14,6 +14,7 @@ refuses to install.
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import shutil
 import sys
@@ -237,6 +238,30 @@ def test_signing(manifest: dict) -> None:
           be.needs_resigning("a" * 64, declared), True)
     check("our own APK is not", be.needs_resigning(declared, declared), False)
     check("an unreadable signature is left alone", be.needs_resigning("", declared), False)
+
+    # The keystore must come from a secret and must never live in the repository: a key
+    # anyone can clone cannot back the fingerprint that identifies this repository.
+    cfg = manifest["signing"]
+    check("the signing config names no committed keystore", "keystoreFile" in cfg, False)
+    check("no keystore is committed",
+          sorted(str(p.relative_to(REPO)) for p in REPO.glob("signing*/**/*") if p.is_file()), [])
+    ignored = (REPO / ".gitignore").read_text(encoding="utf-8")
+    check("signingkey.jks could not be committed by accident",
+          [line for line in ("signing/", "signingkey.jks", "signingkey.jks.b64") if line not in ignored],
+          [])
+
+    saved = os.environ.pop("SIGNING_KEY", None)
+    try:
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                be.ensure_keystore(cfg, be.Report())
+                check("a missing SIGNING_KEY stops the run", "no error", "RuntimeError")
+        except RuntimeError as exc:
+            check_true("a missing SIGNING_KEY stops the run, and says how to fix it",
+                       "SIGNING_KEY" in str(exc) and "new-signing-key.sh" in str(exc))
+    finally:
+        if saved is not None:
+            os.environ["SIGNING_KEY"] = saved
 
     # sync_repo_fingerprint is what stops the two drifting apart again; try it on a copy.
     with tempfile.TemporaryDirectory() as tmp:

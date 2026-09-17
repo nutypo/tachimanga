@@ -279,38 +279,35 @@ def decide_publish(repo: pathlib.Path, info: dict, keystore_fp: str) -> tuple[bo
 # keystore
 # --------------------------------------------------------------------------- #
 
-def ensure_keystore(repo: pathlib.Path, cfg: dict, report: Report) -> tuple[pathlib.Path, dict]:
-    """A local .jks plus the alias/passwords for Gradle.
+def ensure_keystore(cfg: dict, report: Report) -> tuple[pathlib.Path, dict]:
+    """The signing keystore, which has to come from the SIGNING_KEY secret.
 
-    Precedence: SIGNING_KEY secret > keystore committed in the repo > generate one
-    and commit it, so the signature is stable across runs and cannot be lost.
+    It is deliberately never read from, or written to, the repository. A keystore
+    committed to a public repository is readable by anyone who can clone it, which makes
+    the signingKeyFingerprint it is meant to back worthless - anyone could sign an APK
+    that matches it. Generating one here would be worse still: it would silently change
+    the signature, and Android will not update an installed extension across a change of
+    signing key.
     """
     alias = os.environ.get("ALIAS") or cfg["alias"]
     store_pw = os.environ.get("KEY_STORE_PASSWORD") or cfg["storePassword"]
     key_pw = os.environ.get("KEY_PASSWORD") or cfg["keyPassword"]
-    path = pathlib.Path("/tmp/signingkey.jks")
 
     secret = (os.environ.get("SIGNING_KEY") or "").strip()
-    if secret:
-        path.write_bytes(base64.b64decode(secret))
-        source = "SIGNING_KEY secret"
-    else:
-        committed = repo / cfg["keystoreFile"]
-        if committed.exists():
-            path.write_bytes(base64.b64decode(committed.read_text(encoding="utf-8")))
-            source = f"committed {cfg['keystoreFile']}"
-        else:
-            run([
-                "keytool", "-genkeypair", "-keystore", str(path), "-alias", alias,
-                "-keyalg", "RSA", "-keysize", "2048", "-validity", str(cfg["validityDays"]),
-                "-storepass", store_pw, "-keypass", key_pw, "-dname", cfg["dname"],
-            ])
-            committed.parent.mkdir(parents=True, exist_ok=True)
-            committed.write_text(base64.b64encode(path.read_bytes()).decode() + "\n",
-                                 encoding="utf-8")
-            source = f"generated -> {cfg['keystoreFile']}"
+    if not secret:
+        raise RuntimeError(
+            "SIGNING_KEY is not set, so there is no keystore to sign with.\n"
+            "  It must be a repository secret holding the base64 of a keystore, e.g.\n"
+            "    .github/scripts/new-signing-key.sh          # prints it, and a fingerprint\n"
+            "    gh secret set SIGNING_KEY --repo <owner>/<repo> < signingkey.b64\n"
+            "  The build refuses to run without it: upstream falls back to the debug key\n"
+            "  when signingkey.jks is missing, which would publish extensions signed with\n"
+            "  a key nobody controls and that nobody could update later."
+        )
+    path = pathlib.Path("/tmp/signingkey.jks")
+    path.write_bytes(base64.b64decode(secret))
 
-    report.keystore = {"source": source, "alias": alias}
+    report.keystore = {"source": "SIGNING_KEY secret", "alias": alias}
     return path, {"ALIAS": alias, "KEY_STORE_PASSWORD": store_pw, "KEY_PASSWORD": key_pw}
 
 
@@ -587,6 +584,15 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
         return result, "failed"
 
 
+def write_report(repo: pathlib.Path, report: Report) -> None:
+    """Record what happened, including the reason a run stopped early.
+
+    GitHub's own job logs need authentication to read, so this file is the audit trail.
+    """
+    (repo / "ci-report.json").write_text(
+        json.dumps(asdict(report), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", default=".")
@@ -606,10 +612,25 @@ def main() -> int:
                 f"{os.environ.get('GITHUB_RUN_ID', '')}"),
     )
 
-    keystore, signing_env = ensure_keystore(repo, manifest["signing"], report)
+    try:
+        keystore, signing_env = ensure_keystore(manifest["signing"], report)
+    except RuntimeError as exc:
+        # Bail before building anything: without a keystore the build would still succeed,
+        # signed with the debug key, and publish extensions that can never be updated.
+        print(f"== {exc}")
+        report.keystore = {"source": "missing", "error": str(exc)}
+        write_report(repo, report)
+        return 1
+
     keystore_fp = keystore_fingerprint(keystore, signing_env["ALIAS"],
                                       signing_env["KEY_STORE_PASSWORD"])
-    report.keystore.update({"sha256": keystore_fp} if keystore_fp else {})
+    if not keystore_fp:
+        print("== the signing keystore could not be read (wrong format, or the alias or "
+              "password does not match); refusing to sign")
+        report.keystore = {"source": "unreadable", "alias": signing_env["ALIAS"]}
+        write_report(repo, report)
+        return 1
+    report.keystore["sha256"] = keystore_fp
 
     min_sdk = manifest["targetMinSdk"]
     gates = effective_gates(manifest)
@@ -644,7 +665,7 @@ def main() -> int:
     # Signing is one unit of work: replace any APK still carrying another key, then only
     # let repo.json claim a key that every APK in the index actually has. Skipped for a
     # single-module or watch-only run, where auditing the whole repo would be a surprise.
-    if not args.watch_only and not args.only and keystore_fp:
+    if not args.watch_only and not args.only:
         print("== signing")
         resigned = resign_apks(repo, keystore, signing_env, keystore_fp, report)
         print(f"   {resigned} APK(s) re-signed")
@@ -664,8 +685,6 @@ def main() -> int:
                 report.fingerprint["repoJson"] = "updated"
             else:
                 report.fingerprint["repoJson"] = "already current"
-    elif not keystore_fp and not args.watch_only:
-        print("== signing: no keystore fingerprint (keytool unavailable); nothing to check")
 
     # watch pass: no builds, just early warning about upstream moving under us
     for module in manifest["watch"].get("incompatible", []):
@@ -720,8 +739,7 @@ def main() -> int:
                           + (f", closest names: {', '.join(near)}" if near else ""),
             })
 
-    (repo / "ci-report.json").write_text(
-        json.dumps(asdict(report), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_report(repo, report)
 
     published = [r for r in report.results if r["status"] == "published"]
     print(f"\n{len(published)} published, {failures} failed")

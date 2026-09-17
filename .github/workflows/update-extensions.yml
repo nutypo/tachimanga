@@ -4,10 +4,10 @@ name: Update extensions
 # that changed. See that file for which extensions are included and why some are
 # pinned to a fixed upstream revision.
 #
-# Nothing needs configuring: on the first run a signing key is generated and
-# committed to signing/ so that every later build has the same signature.
-# To use a private key instead, set these repository secrets (they take
-# precedence): SIGNING_KEY (base64 of a .jks), ALIAS, KEY_STORE_PASSWORD, KEY_PASSWORD.
+# Nothing needs configuring except the signing key, which must be set as a repository
+# secret before this can run. See the signing section of .github/extensions.json and
+# .github/scripts/new-signing-key.sh; the build refuses to start without it rather than
+# fall back to upstream's debug key.
 #
 # Upstream builds at a minSdk Tachimanga cannot load, so each build rewrites the
 # version catalog first (see targetMinSdk in .github/extensions.json). A self-test
@@ -96,6 +96,8 @@ jobs:
           print(f"### Extension update run\n")
           print(f"keystore: `{report['keystore'].get('source')}`"
                 + (f" (sha256 `{report['keystore']['sha256'][:16]}…`)" if report['keystore'].get('sha256') else ""))
+          if report["keystore"].get("error"):
+              print(f"\n**{report['keystore']['error']}**")
           fp = report.get("fingerprint") or {}
           if fp:
               if fp["mismatched"]:
@@ -124,7 +126,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A repo ci-report.json
-          if [ -d signing ]; then git add -A signing; fi
           if git diff --cached --quiet; then
             echo "nothing to publish"
             exit 0
