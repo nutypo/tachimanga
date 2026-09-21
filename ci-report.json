@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-17T06:48:35Z",
-  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/35191476183",
+  "generatedAt": "2026-09-21T12:05:34Z",
+  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/35597499359",
   "keystore": {
     "source": "SIGNING_KEY secret",
     "alias": "nutypo-extensions",
@@ -10,165 +10,104 @@
     "expected": "846b7ebee094f686b3138bf5f53134d775324e6989b3d5672460496a8944fd37",
     "mismatched": [],
     "unreadable": [],
-    "repoJson": "updated"
+    "repoJson": "already current"
   },
-  "resigned": [
-    {
-      "apk": "tachiyomi-en.komikindolive-v1.4.30.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-en.manga18fx-v1.4.50.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.ikanwzd-v1.4.2.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.eighteenmh-v1.4.4.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.baozimanhua-v1.4.25.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.baozimhorg-v1.4.35.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.mangacopy-v1.4.1.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.ho5ho-v1.4.47.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.bilimanga-v1.4.6.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.komiic-v1.4.4.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.mycomic-v1.4.2.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    },
-    {
-      "apk": "tachiyomi-zh.pawomh-v1.4.2.apk",
-      "status": "signed",
-      "was": "569d467be83f"
-    }
-  ],
+  "resigned": [],
   "results": [
     {
       "module": "src/en/manga18club",
       "ref": "main",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk lowered to 21",
       "pkg": "eu.kanade.tachiyomi.extension.en.manga18club",
       "version": "1.4.3",
       "code": 104003,
-      "apk": "tachiyomi-en.manga18club-v1.4.3.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/en/mangaforfreecom",
       "ref": "main",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.en.mangaforfreecom",
       "version": "1.4.54",
       "code": 104054,
-      "apk": "tachiyomi-en.mangaforfreecom-v1.4.54.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/es/templescanesp",
       "ref": "main",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.es.templescanesp",
       "version": "1.4.64",
       "code": 104064,
-      "apk": "tachiyomi-es.templescanesp-v1.4.64.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/bakamh",
       "ref": "main",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.bakamh",
       "version": "1.4.62",
       "code": 104062,
-      "apk": "tachiyomi-zh.bakamh-v1.4.62.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/hanime1",
       "ref": "main",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.hanime1",
       "version": "1.4.3",
       "code": 104003,
-      "apk": "tachiyomi-zh.hanime1-v1.4.3.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/jinmantiantang",
       "ref": "main",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.jinmantiantang",
       "version": "1.4.58",
       "code": 104058,
-      "apk": "tachiyomi-zh.jinmantiantang-v1.4.58.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/zaimanhua",
       "ref": "main",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.zaimanhua",
       "version": "1.4.19",
       "code": 104019,
-      "apk": "tachiyomi-zh.zaimanhua-v1.4.19.apk",
+      "apk": "",
       "log_tail": ""
     },
     {
       "module": "src/zh/wnacg",
       "ref": "34c463a1fe509bdcb623ac02b6574ec17610beda",
-      "status": "published",
-      "reason": "published APK was signed with a different key",
+      "status": "up-to-date",
+      "reason": "already published with this key",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.wnacg",
       "version": "1.4.23",
       "code": 23,
-      "apk": "tachiyomi-zh.wnacg-v1.4.23.apk",
+      "apk": "",
       "log_tail": ""
     }
   ],
