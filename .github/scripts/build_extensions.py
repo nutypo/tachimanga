@@ -439,14 +439,21 @@ def save_recipes(repo: pathlib.Path, recipes: dict) -> bool:
     return True
 
 
-def bump_version_code(upstream: pathlib.Path, module: str, floor: int) -> str | None:
+def bump_version_code(upstream: pathlib.Path, module: str, published: dict) -> str | None:
     """Raise a module's version so a rebuild is a version clients will take.
 
-    The last component of a version is declared in the module's own build file - as
-    `versionCode` under the current plugin and `extVersionCode` under the legacy one -
-    and the build turns it into both the name and the (much larger) code. `floor` is
-    that component as published, so the new value always lands above it; upstream having
-    already moved past the published version needs no help and is left alone.
+    The value that has to move is the one the module's own build file declares - as
+    `versionCode` under the current plugin and `extVersionCode` under the legacy one - and
+    how far it has to move depends on what that plugin turns it into:
+
+    * the newer DSL packs it into the version code beside the lib version (versionCode 58
+      -> 104058), so the floor is the published *version*'s last component, and the value
+      can never grow into the digits the lib version occupies;
+    * the legacy plugin puts it straight into the code (extVersionCode 57 -> 57), so the
+      floor is the published *code* itself - the number an install compares, and therefore
+      the one a module re-pinned between the two plugins has to clear.
+
+    Upstream having already moved past the floor needs no help and is left alone.
 
     Returns a note describing the rewrite, or None when there is nothing to change.
     """
@@ -459,12 +466,15 @@ def bump_version_code(upstream: pathlib.Path, module: str, floor: int) -> str | 
                           r"(?P<num>\d+)\s*$", text, flags=re.MULTILINE)
         if not match:
             return None
+        legacy = match.group("key") == "extVersionCode"
+        floor = (int(published.get("code") or 0) if legacy
+                 else version_patch(published.get("version", "")))
         current = int(match.group("num"))
         if current > floor:
             return None
-        # The component shares the version code with the lib version (1.4.59 -> 104059),
-        # so it cannot grow into those digits - upstream simply has to have moved on.
-        if floor + 1 >= 1000:
+        # Only the packed value has digits to collide with: under the legacy plugin the
+        # value *is* the code, so it may pass 999 without reaching the lib version.
+        if not legacy and floor + 1 >= 1000:
             return None
         want = floor + 1
         updated = (text[:match.start()]
@@ -859,7 +869,7 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
                      if recipes.get(pkg) != fingerprint
                      else published_reason(repo, pkg, current, keystore_fp, gates))
             if stale:
-                note = bump_version_code(upstream, module, version_patch(current.get("version", "")))
+                note = bump_version_code(upstream, module, current)
                 if note:
                     result.bumped = f"{note} ({stale})"
                     print(f"   republishing at a new version: {result.bumped}")

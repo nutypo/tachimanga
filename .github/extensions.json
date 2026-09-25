@@ -58,9 +58,9 @@
     { "module": "src/zh/hanime1", "track": "main" },
     {
       "module": "src/zh/jinmantiantang",
-      "ref": "9b78a3583c5f7d6a3c0b79907ac95f70de33ef3c",
+      "ref": "e43a476f9f9ac99dd4c8271300aadf998a7f97af",
       "patch": "patch-jinmantiantang.py",
-      "_comment": "Upstream migrated this to libVersion 1.6 / KeiSource on 2026-09-22 (#19244), so this is pinned to the last revision that still uses the classic API. The patch backports the mirror fix 18comic.vip needs (it is behind a Cloudflare challenge now) onto it."
+      "_comment": "Pinned to the last revision that predates upstream's newer build-logic DSL (2026-07-04, #17274), which is also the revision the sibling fork's working 1.4.57 build of this module comes from. The extensions Tachimanga does load from here were all built from a pre-DSL revision - wnacg is one, and this module's DSL build is the one that will not install: the DSL declares a generated `.Generated` entry class, an absolute `keiyoushi.source.UrlActivity` and `tachiyomix.*` meta-data, none of which a classic build has. That pin also predates the libVersion 1.6 / KeiSource migration (2026-09-22, #19244), which Tachimanga cannot load either. The patch backports the mirror fix 18comic.vip needs (it is behind a Cloudflare challenge now) onto it."
     },
     { "module": "src/zh/zaimanhua", "track": "main" },
     {

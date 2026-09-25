@@ -5,9 +5,14 @@ Run from the root of the checked-out upstream repo:
 
     python3 patch-jinmantiantang.py
 
-Upstream migrated this module to the KeiSource API (libVersion 1.6) on 2026-09-22
-(keiyoushi/extensions-source#19244), which Tachimanga cannot load, so the manifest pins
-it to the last revision that still uses the classic API.
+This module is pinned to the last revision that predates upstream's newer build-logic DSL
+(2026-07-04, #17274) - the same revision the sibling fork's working 1.4.57 build of it
+comes from. Tachimanga loads the extensions this pipeline builds from a pre-DSL revision
+(wnacg, and that fork's build of this one) and refuses this module's DSL build, whose
+manifest declares a generated `.Generated` entry class, an absolute
+`keiyoushi.source.UrlActivity` and `tachiyomix.*` meta-data - none of which a classic
+build has. The pin also predates the libVersion 1.6 / KeiSource migration (2026-09-22,
+#19244), which Tachimanga cannot load either.
 
 1. Default domain. The classic build opens on 18comic.vip, which is now behind a
    Cloudflare challenge, so the first entry of the built-in site list - the one the
@@ -35,34 +40,55 @@ ROOT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path.cwd()
 MODULE = ROOT / "src/zh/jinmantiantang"
 PKG = MODULE / "src/eu/kanade/tachiyomi/extension/zh/jinmantiantang"
 
-# 1a. make 18comic.ink the site the extension starts on
+# 1a. make 18comic.ink the site the extension starts on. On the pinned (pre-DSL) revision
+# this array is also the only place the base URL is declared: SharedPreferences.baseUrl
+# reads it by index.
 OLD_SITES = '''    "18comic.vip",
     "18comic.ink",'''
 NEW_SITES = '''    "18comic.ink",
     "18comic.vip",'''
 
-# 1b. the declared base URL has to agree with the site list it starts on
+# 1b. the newer DSL declares the base URL in the build file as well, and the two have to
+# agree. The pinned revision predates that and has no such line, so this half is optional -
+# it only keeps the patch correct if this module is ever re-pinned to a DSL revision.
 OLD_BASE_URL = '        baseUrl = "https://18comic.vip"'
 NEW_BASE_URL = '        baseUrl = "https://18comic.ink"'
 
 
-def patch(path: pathlib.Path, pairs) -> None:
+def patch(path: pathlib.Path, pairs, required: bool = True) -> None:
+    """Rewrite `pairs` in `path`, insisting each anchor appears exactly once.
+
+    A required anchor that has moved is an error rather than a silent no-op: the point of
+    the patch is that the extension comes out on a site that answers. An optional one - a
+    line only the newer DSL carries - is skipped when it is not there, so this stays
+    correct whether the module is pinned to a pre-DSL revision or a DSL one.
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        sys.exit(f"error: {path} not found - run this from the upstream repo root")
+        if required:
+            sys.exit(f"error: {path} not found - run this from the upstream repo root")
+        print(f"{path.name}: absent on this revision, nothing to patch")
+        return
 
+    changed = 0
     for old, new in pairs:
         count = text.count(old)
+        if count == 0 and not required:
+            continue
         if count != 1:
             sys.exit(
                 f"error: expected exactly 1 occurrence in {path}, found {count}:\n  {old!r}"
             )
         text = text.replace(old, new)
+        changed += 1
 
+    if not changed:
+        print(f"{path.name}: nothing to patch")
+        return
     path.write_text(text, encoding="utf-8")
-    print(f"patched {path} ({len(pairs)} change(s))")
+    print(f"patched {path.name} ({changed} change(s))")
 
 
 patch(PKG / "Preferences.kt", [(OLD_SITES, NEW_SITES)])
-patch(MODULE / "build.gradle.kts", [(OLD_BASE_URL, NEW_BASE_URL)])
+patch(MODULE / "build.gradle.kts", [(OLD_BASE_URL, NEW_BASE_URL)], required=False)
