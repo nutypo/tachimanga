@@ -91,6 +91,26 @@
     "keepPrevious": 3
   },
 
+  "republish": {
+    "_comment": [
+      "A rebuild that would come out at the version already published is raised to the",
+      "next one instead. Clients key an install off the version and reuse the file they",
+      "already fetched, so a same-version rebuild never reaches anyone - it only replaces",
+      "the APK behind a version every app is already sitting on. That is exactly how the",
+      "classic-entry fix went out and changed nothing on the devices that needed it.",
+      "Two things trigger it: a change to our own recipe for a module (its patch, the",
+      "global prep patches, the minSdk, the gates - none of which move upstream's",
+      "version), and the published APK turning out to be one that can no longer stand",
+      "(missing, signed with another key, or failing the gates).",
+      "repo/recipe.json records the recipe each published module was built with. A module",
+      "it does not know yet counts as changed, so the first run that sees a module with",
+      "no recorded recipe publishes it one version on - which is what flushes whatever",
+      "the apps are already holding.",
+      "Set onRecipeChange to false to publish a rebuild at the version it comes out at."
+    ],
+    "onRecipeChange": true
+  },
+
   "sourceDiscovery": {
     "_comment": [
       "Sources we would like to carry that keiyoushi may or may not ship. Every run",

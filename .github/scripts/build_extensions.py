@@ -12,6 +12,13 @@ publishes when every gate passes and the version is not a downgrade. It also
 republishes when the published APK was signed with a different key than the one
 we sign with now, so switching to (or rotating) the CI keystore heals itself.
 
+A rebuild that would come out at the version already published is raised to the
+next one instead. Clients key an install off the version and hang on to what they
+already downloaded, so a same-version rebuild is invisible - it only replaces the
+file behind a version everyone already has. That happens whenever our own recipe
+for a module changes (a patch, the minSdk, a gate: none of which move upstream's
+version), and repo/recipe.json is what records it.
+
 ci-report.json is always written at the repo root - including the tail of the
 Gradle log on failure - because GitHub job logs need authentication to read, so
 without it a scheduled run that breaks is a black box.
@@ -24,6 +31,7 @@ import base64
 import datetime
 import difflib
 import glob
+import hashlib
 import json
 import os
 import pathlib
@@ -56,6 +64,7 @@ class Result:
     version: str = ""
     code: int = 0
     apk: str = ""
+    bumped: str = ""
     log_tail: str = ""
 
 
@@ -362,6 +371,108 @@ def decide_publish(repo: pathlib.Path, info: dict, keystore_fp: str,
         if stale:
             return True, f"published APK no longer passes the gates ({stale[0]})"
     return False, "already published with this key"
+
+
+def published_reason(repo: pathlib.Path, pkg: str, current: dict | None, keystore_fp: str,
+                     gates: dict | None) -> str | None:
+    """Why the published APK cannot simply stand, or None if it can.
+
+    Answered by the publish rule itself - the APK that is already out there is put
+    through decide_publish as if it were a fresh build at its own version - so this
+    can never disagree with what publishing later concludes.
+    """
+    if current is None:
+        return None
+    same = {"path": str(repo / "repo/apk" / str(current.get("apk", ""))), "pkg": pkg,
+            "code": current.get("code", 0), "version": current.get("version", "")}
+    should, why = decide_publish(repo, same, keystore_fp, gates)
+    return why if should else None
+
+
+# --------------------------------------------------------------------------- #
+# republishing at a new version
+# --------------------------------------------------------------------------- #
+
+
+def version_patch(version: str) -> int:
+    """The last component of a version name - the floor a rebuilt version must beat."""
+    parts = re.findall(r"\d+", version or "")
+    return int(parts[-1]) if parts else 0
+
+
+def recipe_fingerprint(repo: pathlib.Path, manifest: dict, entry: dict, gates: dict,
+                       min_sdk: dict) -> str:
+    """Everything about *how* we build a module that can change what comes out.
+
+    Upstream's version only moves when upstream edits the module. Our own recipe - the
+    patches we apply to it, the minSdk it is built at, the rules it has to satisfy -
+    changes far more often, and none of that appears in the version. Hashing it is what
+    lets a run tell that a published APK was built some other way and has to be replaced
+    under a version clients will actually take.
+    """
+    parts = [entry["module"], str(entry.get("ref") or entry.get("track", "main")),
+             json.dumps(gates, sort_keys=True), str(min_sdk["value"])]
+    for name in [entry.get("patch")] + list(manifest.get("prep", {}).get("patches", [])):
+        if not name:
+            continue
+        path = repo / ".github/scripts" / name
+        parts.append(f"{name}:{path.read_text(encoding='utf-8') if path.exists() else 'missing'}")
+    return hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:16]
+
+
+def load_recipes(repo: pathlib.Path) -> dict:
+    """pkg -> the recipe its published APK was built with. Empty if there is no state yet."""
+    try:
+        doc = json.loads((repo / "repo/recipe.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return doc if isinstance(doc, dict) else {}
+
+
+def save_recipes(repo: pathlib.Path, recipes: dict) -> bool:
+    path = repo / "repo/recipe.json"
+    text = json.dumps(recipes, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if path.exists() and path.read_text(encoding="utf-8") == text:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def bump_version_code(upstream: pathlib.Path, module: str, floor: int) -> str | None:
+    """Raise a module's version so a rebuild is a version clients will take.
+
+    The last component of a version is declared in the module's own build file - as
+    `versionCode` under the current plugin and `extVersionCode` under the legacy one -
+    and the build turns it into both the name and the (much larger) code. `floor` is
+    that component as published, so the new value always lands above it; upstream having
+    already moved past the published version needs no help and is left alone.
+
+    Returns a note describing the rewrite, or None when there is nothing to change.
+    """
+    for name in ("build.gradle.kts", "build.gradle"):
+        path = upstream / module / name
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        match = re.search(r"^(?P<indent>\s*)(?P<key>extVersionCode|versionCode)\s*=\s*"
+                          r"(?P<num>\d+)\s*$", text, flags=re.MULTILINE)
+        if not match:
+            return None
+        current = int(match.group("num"))
+        if current > floor:
+            return None
+        # The component shares the version code with the lib version (1.4.59 -> 104059),
+        # so it cannot grow into those digits - upstream simply has to have moved on.
+        if floor + 1 >= 1000:
+            return None
+        want = floor + 1
+        updated = (text[:match.start()]
+                   + f'{match.group("indent")}{match.group("key")} = {want}'
+                   + text[match.end():])
+        path.write_text(updated, encoding="utf-8")
+        return f"{match.group('key')} {current} -> {want} in {name}"
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -721,8 +832,8 @@ def apply_prep_patches(upstream: pathlib.Path, manifest: dict, repo: pathlib.Pat
 
 
 def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Path,
-                gates: dict, min_sdk: dict, keep_previous: int, signing_env: dict,
-                keystore_fp: str) -> tuple[Result, str]:
+                manifest: dict, gates: dict, min_sdk: dict, keep_previous: int,
+                signing_env: dict, keystore_fp: str, recipes: dict) -> tuple[Result, str]:
     """Build one manifest entry and publish it if it passes the gates."""
     module = entry["module"]
     result = Result(module=module, ref=ref)
@@ -732,6 +843,26 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
             patch = repo / ".github/scripts" / entry["patch"]
             run(["python3", str(patch), str(upstream)])
         result.prep = lower_min_sdk(upstream, min_sdk)
+
+        # Decide the version before building, not after: a rebuild that would land on the
+        # version already published has to come out higher, and finding that out once the
+        # APK exists would mean building it twice. Two things force it - a change to our
+        # own recipe for the module, and the published APK turning out to be one that can
+        # no longer stand (gone, another key, or failing the gates). A module that is not
+        # published yet needs neither: its build is a genuine first release.
+        pkg = package_for(module)
+        _, entries = load_index(repo)
+        current = next((e for e in entries if e["pkg"] == pkg), None)
+        fingerprint = recipe_fingerprint(repo, manifest, entry, gates, min_sdk)
+        if current is not None and manifest.get("republish", {}).get("onRecipeChange", True):
+            stale = ("our recipe for it changed"
+                     if recipes.get(pkg) != fingerprint
+                     else published_reason(repo, pkg, current, keystore_fp, gates))
+            if stale:
+                note = bump_version_code(upstream, module, version_patch(current.get("version", "")))
+                if note:
+                    result.bumped = f"{note} ({stale})"
+                    print(f"   republishing at a new version: {result.bumped}")
 
         print(f"   building {gradle_task(module)}")
         build = subprocess.run(
@@ -763,11 +894,16 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
         if not should:
             result.status = "up-to-date"
             result.reason = why
+            # Only bank the recipe once it is what is published. A build that was bumped
+            # and still did not get published has to be tried again, not recorded as done.
+            if not result.bumped:
+                recipes[info["pkg"]] = fingerprint
             return result, "up-to-date"
 
         result.apk = publish(repo, module, info, keep_previous, entry.get("_discovered"))
+        recipes[info["pkg"]] = fingerprint
         result.status = "published"
-        result.reason = why
+        result.reason = why + (f"; {result.bumped}" if result.bumped else "")
         return result, "published"
     except Exception as exc:  # noqa: BLE001 - one entry must not kill the run
         result.status = "failed"
@@ -827,6 +963,10 @@ def main() -> int:
     gates = effective_gates(manifest)
     # Absent key keeps every previous build, which is what this did before it was capped.
     keep_previous = manifest.get("retention", {}).get("keepPrevious", -1)
+    # What each published module was built with, so a change to our recipe for one is
+    # visible. A module missing from it - including every module the first time this ran -
+    # counts as changed, which is what flushes builds that are already out there.
+    recipes = load_recipes(repo)
 
     entries = list(manifest["extensions"])
     if args.only:
@@ -874,8 +1014,9 @@ def main() -> int:
             print(f"== upstream {ref} ({len(group)} extension(s))")
             for entry in group:
                 print(f"-> {entry['module']}")
-                result, outcome = build_entry(entry, upstream, ref, repo, gates,
-                                              min_sdk, keep_previous, signing_env, keystore_fp)
+                result, outcome = build_entry(entry, upstream, ref, repo, manifest, gates,
+                                              min_sdk, keep_previous, signing_env,
+                                              keystore_fp, recipes)
                 failures += outcome == "failed"
                 report.results.append(asdict(result))
                 print(f"   {outcome}: {result.reason}"
@@ -960,6 +1101,8 @@ def main() -> int:
             })
 
     write_report(repo, report)
+    if save_recipes(repo, recipes):
+        print("== recipe state updated (a changed recipe republishes at a new version)")
 
     published = [r for r in report.results if r["status"] == "published"]
     print(f"\n{len(published)} published, {failures} failed")

@@ -175,6 +175,22 @@ def test_publishing(manifest: dict) -> None:
                    be.decide_publish(repo, same, running,
                                      {"requireDexSymbols": ["no/such/symbol"]})[0])
 
+        # The same question is asked *before* a build, to decide whether the rebuild has
+        # to come out at a new version. It has to be answered by the publish rule itself,
+        # or the two could disagree and a rebuild would silently overwrite what is there.
+        current = next(e for e in json.loads((repo / "repo/index.min.json").read_text(encoding="utf-8"))
+                       if e["pkg"] == pkg)
+        check("a published APK that still stands needs no new version",
+              be.published_reason(repo, pkg, current, running, gates), None)
+        check_true("one that no longer passes the gates does",
+                   be.published_reason(repo, pkg, current, running,
+                                       {"requireDexSymbols": ["no/such/symbol"]}))
+        check_true("and so does one signed with another key",
+                   be.published_reason(repo, pkg, current, "a" * 64, gates))
+        check("an unlisted module needs no new version at all",
+              be.published_reason(repo, "eu.kanade.tachiyomi.extension.zh.ghost", None,
+                                  running, gates), None)
+
         # Rotating or losing the key would otherwise strand everyone on the old
         # signature, because Android won't update across a signing change.
         check("a build under a new key is republished",
@@ -379,6 +395,108 @@ def test_discovery(manifest: dict) -> None:
           be.module_for_pkg(be.package_for("src/ko/newxtoon")), "src/ko/newxtoon")
 
 
+def test_republish(manifest: dict) -> None:
+    """A rebuild has to come out at a version the apps will actually take."""
+    check("the published version's last component is the floor",
+          be.version_patch("1.4.59"), 59)
+    check("a version with no digits has no floor", be.version_patch(""), 0)
+
+    modern = "keiyoushi {\n    name = \"Demo\"\n    versionCode = 59\n}\n"
+    legacy_gradle = "ext {\n    extVersionCode = 1\n}\n"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        module = "src/zh/demo"
+        path = root / module / "build.gradle.kts"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(modern, encoding="utf-8")
+
+        check("a recipe change raises the version",
+              be.bump_version_code(root, module, 59),
+              "versionCode 59 -> 60 in build.gradle.kts")
+        check_true("and the module's build file follows",
+                   "versionCode = 60" in path.read_text(encoding="utf-8"))
+
+        # Upstream moving past the published version already makes a rebuild an update,
+        # so there is nothing to rewrite.
+        path.write_text(modern.replace("= 59", "= 61"), encoding="utf-8")
+        check("an upstream bump is left alone", be.bump_version_code(root, module, 59), None)
+        check_true("and is not rewritten anyway",
+                   "versionCode = 61" in path.read_text(encoding="utf-8"))
+
+        # The legacy plugin names the same thing differently.
+        legacy = root / "src/zh/legacy/build.gradle"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(legacy_gradle, encoding="utf-8")
+        check("the legacy plugin's field is found too",
+              be.bump_version_code(root, "src/zh/legacy", 1),
+              "extVersionCode 1 -> 2 in build.gradle")
+
+        # The component shares the version code with the lib version (1.4.59 -> 104059),
+        # so growing into those digits would collide with it.
+        legacy.write_text(legacy_gradle.replace("= 1", "= 999"), encoding="utf-8")
+        check("a version that cannot rise without overflowing is refused",
+              be.bump_version_code(root, "src/zh/legacy", 999), None)
+        check("a module with no version field is not guessed at",
+              be.bump_version_code(root, "src/zh/absent", 1), None)
+
+    gates = be.effective_gates(manifest)
+    min_sdk = manifest["targetMinSdk"]
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = pathlib.Path(tmp)
+        scripts = repo / ".github/scripts"
+        scripts.mkdir(parents=True)
+        patch = scripts / "patch-demo.py"
+        patch.write_text("one", encoding="utf-8")
+        (scripts / "prep.py").write_text("prep", encoding="utf-8")
+        entry = {"module": "src/zh/demo", "patch": "patch-demo.py"}
+        shaped = {"prep": {"patches": ["prep.py"]}}
+
+        first = be.recipe_fingerprint(repo, shaped, entry, gates, min_sdk)
+        check("the same recipe fingerprints the same",
+              be.recipe_fingerprint(repo, shaped, entry, gates, min_sdk), first)
+        patch.write_text("two", encoding="utf-8")
+        check_true("a changed module patch changes it",
+                   be.recipe_fingerprint(repo, shaped, entry, gates, min_sdk) != first)
+        patch.write_text("one", encoding="utf-8")
+        check("and reverting it comes back",
+              be.recipe_fingerprint(repo, shaped, entry, gates, min_sdk), first)
+        (scripts / "prep.py").write_text("changed", encoding="utf-8")
+        check_true("a changed prep patch changes it for every module",
+                   be.recipe_fingerprint(repo, shaped, entry, gates, min_sdk) != first)
+
+        check("no recipe state yet reads as empty", be.load_recipes(repo), {})
+        check_true("recording a recipe writes it", be.save_recipes(repo, {"pkg": first}))
+        check("and it reads back", be.load_recipes(repo).get("pkg"), first)
+        check("writing the same state again is a no-op",
+              be.save_recipes(repo, {"pkg": first}), False)
+
+    # The real case these pieces exist for: jinmantiantang's published APK is fine - the
+    # classic-entry fix replaced it in place, under the version it was already out at - so
+    # published_reason says nothing, and only the recipe state can move a rebuild onto a
+    # version installs will take. Exercise the decision against the real index entry.
+    _, indexed = be.load_index(REPO)
+    entry = next(e for e in manifest["extensions"] if e["module"] == "src/zh/jinmantiantang")
+    pkg = be.package_for(entry["module"])
+    current = next(e for e in indexed if e["pkg"] == pkg)
+    running = be.apk_signing_fingerprint(REPO / "repo/apk" / current["apk"])
+    check("jinmantiantang's fixed build passes the gates",
+          be.published_reason(REPO, pkg, current, running, gates), None)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # The pinned revision as it arrives from upstream. Its patch leaves the version
+        # alone, so the rewrite has to reach past the published one on its own.
+        upstream = pathlib.Path(tmp)
+        module_dir = upstream / entry["module"]
+        module_dir.mkdir(parents=True)
+        (module_dir / "build.gradle.kts").write_text(
+            'keiyoushi {\n    name = "Jinmantiantang"\n    versionCode = 58\n}\n',
+            encoding="utf-8")
+        check("the rebuild lands above the published version",
+              be.bump_version_code(upstream, entry["module"],
+                                   be.version_patch(current["version"])),
+              "versionCode 58 -> 60 in build.gradle.kts")
+
+
 def test_readme() -> None:
     """The README tables are generated from the index, so they cannot drift from it."""
     import readme
@@ -458,6 +576,7 @@ def main() -> int:
                      ("module mapping", lambda _m: test_module_mapping()),
                      ("publishing", test_publishing),
                      ("retention", test_retention),
+                     ("republish", test_republish),
                      ("signing", test_signing),
                      ("discovery", test_discovery),
                      ("README", lambda _m: test_readme()),
