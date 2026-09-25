@@ -32,12 +32,17 @@ import shutil
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import asdict, dataclass, field
 
 UPSTREAM_URL = "https://github.com/keiyoushi/extensions-source.git"
 UPSTREAM_REPO = "keiyoushi/extensions-source"
+# Upstream's published, machine-readable source list: one entry per built extension,
+# with the package name and the base URL of every source it contains. Used to resolve
+# the "wanted" sources in the manifest without cloning or crawling the source tree.
+KEIYOUSHI_INDEX_URL = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json"
 
 
 @dataclass
@@ -193,8 +198,14 @@ def apk_pattern(module: str) -> str:
     return f"tachiyomi-{lang}.{name}-v*.apk"
 
 
-def publish(repo: pathlib.Path, module: str, info: dict, keep_previous: int) -> str:
-    """Copy the built APK into repo/apk/ and point the index at it."""
+def publish(repo: pathlib.Path, module: str, info: dict, keep_previous: int,
+            meta: dict | None = None) -> str:
+    """Copy the built APK into repo/apk/ and point the index at it.
+
+    `meta` is only needed for a source adopted from upstream on the fly: it has no
+    index entry yet, so one is created from upstream's own description of the
+    extension. Everything else already has an entry the manifest and index agree on.
+    """
     lang, name = module_parts(module)
     apk_dir = repo / "repo/apk"
     apk_dir.mkdir(parents=True, exist_ok=True)
@@ -203,6 +214,9 @@ def publish(repo: pathlib.Path, module: str, info: dict, keep_previous: int) -> 
 
     index_path, entries = load_index(repo)
     matches = [e for e in entries if e["pkg"] == info["pkg"]]
+    if not matches and meta:
+        matches = [index_entry(info, meta)]
+        entries.append(matches[0])
     if len(matches) != 1:
         raise RuntimeError(f"expected exactly 1 {info['pkg']} entry in the index, found {len(matches)}")
     matches[0]["apk"] = filename
@@ -220,6 +234,35 @@ def publish(repo: pathlib.Path, module: str, info: dict, keep_previous: int) -> 
         # which matters most for the extensions this pipeline cannot rebuild.
         print(f"   keeping previous build(s) {', '.join(previous)}")
     return filename
+
+
+def index_entry(info: dict, meta: dict) -> dict:
+    """A brand-new index entry for a source adopted from upstream's published index.
+
+    The shape matches the entries the repository already ships, so the app cannot tell
+    an adopted source from a hand-listed one. Fields that come from our build (apk,
+    code, version) are overwritten by publish().
+    """
+    sources = [
+        {
+            "name": source.get("name") or meta.get("name", ""),
+            "lang": source.get("lang") or meta.get("lang", "all"),
+            "id": str(source.get("id", "")),
+            "baseUrl": source.get("url") or "",
+        }
+        for source in meta.get("sources", [])
+    ]
+    lang = meta.get("lang") or (sources[0]["lang"] if sources else "all")
+    return {
+        "name": f"Tachiyomi: {meta.get('name', '')}",
+        "pkg": info["pkg"],
+        "apk": "",
+        "lang": lang,
+        "code": info["code"],
+        "version": info["version"],
+        "nsfw": 1 if meta.get("nsfw") else 0,
+        "sources": sources,
+    }
 
 
 def version_key(filename: str) -> tuple:
@@ -517,6 +560,91 @@ def module_config(module: str, ref: str = "main") -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# wanted sources - adopt what upstream builds, without listing it by hand
+# --------------------------------------------------------------------------- #
+
+
+def keiyoushi_index(url: str = KEIYOUSHI_INDEX_URL) -> list[dict]:
+    """Upstream's published source list, flattened to one record per extension.
+
+    Returns [] if the index is unreachable or malformed, which is reported to the
+    caller rather than treated as "upstream has nothing".
+    """
+    text = fetch_text(url)
+    if not text:
+        return []
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return []
+    records = []
+    for ext in doc.get("extensionList", {}).get("extensions", []):
+        pkg = ext.get("packageName", "")
+        if not pkg:
+            continue
+        records.append({
+            "pkg": pkg,
+            "name": ext.get("name", ""),
+            "libVersion": str(ext.get("extensionLib", "")),
+            "nsfw": ext.get("contentWarning") == "CONTENT_WARNING_NSFW",
+            "sources": [
+                {"id": s.get("id"), "name": s.get("name"),
+                 "lang": s.get("language"), "url": s.get("homeUrl")}
+                for s in ext.get("sources", [])
+            ],
+        })
+    return records
+
+
+def module_for_pkg(pkg: str) -> str:
+    """eu.kanade.tachiyomi.extension.zh.mangaxiaosi -> src/zh/mangaxiaosi"""
+    parts = pkg.split(".")
+    if len(parts) < 2 or not parts[-1] or not parts[-2]:
+        raise ValueError(f"unexpected package: {pkg}")
+    return f"src/{parts[-2]}/{parts[-1]}"
+
+
+def _host(url: str) -> str:
+    return urllib.parse.urlsplit(url or "").netloc.lower()
+
+
+def resolve_wanted(wanted: dict, records: list[dict]) -> tuple[str, dict | None, str]:
+    """Find the upstream extension for a wanted source, and whether we can build it.
+
+    A match is either a host match against the source's advertised base URL (strongest,
+    so a domain we already know pins the right extension), or one of the entry's
+    `match` aliases appearing in the package name or a source name. Anything upstream
+    still ships on the classic API (libVersion 1.4) is buildable; 1.6 is KeiSource and
+    will not load in Tachimanga, so it is only ever reported.
+    """
+    host = _host(wanted.get("url", ""))
+    keys = [str(key).lower() for key in wanted.get("match", []) if key]
+    scored = []
+    for record in records:
+        slug = record["pkg"].rsplit(".", 1)[-1].lower()
+        names = [record["name"].lower()]
+        names += [str(s.get("name") or "").lower() for s in record["sources"]]
+        hosts = [_host(s.get("url", "")) for s in record["sources"]]
+        if host and any(host == h or host.endswith("." + h) or h.endswith("." + host)
+                        for h in hosts if h):
+            score = 2
+        elif any(key in slug or any(key in name for name in names) for key in keys):
+            score = 1
+        else:
+            continue
+        scored.append((score, record))
+    if not scored:
+        return "no-upstream-module", None, f"not in keiyoushi's index ({wanted.get('url', '')})"
+    scored.sort(key=lambda item: -item[0])
+    classic = next((record for _, record in scored if record["libVersion"] == "1.4"), None)
+    if classic:
+        return "in-upstream-buildable", classic, f"keiyoushi has {classic['pkg']} on libVersion 1.4"
+    record = scored[0][1]
+    return ("in-upstream-incompatible", record,
+            f"keiyoushi has {record['pkg']} but on libVersion {record['libVersion']}")
+
+
+# --------------------------------------------------------------------------- #
 # main
 # --------------------------------------------------------------------------- #
 
@@ -574,7 +702,7 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
             result.reason = why
             return result, "up-to-date"
 
-        result.apk = publish(repo, module, info, keep_previous)
+        result.apk = publish(repo, module, info, keep_previous, entry.get("_discovered"))
         result.status = "published"
         result.reason = why
         return result, "published"
@@ -637,9 +765,37 @@ def main() -> int:
     # Absent key keeps every previous build, which is what this did before it was capped.
     keep_previous = manifest.get("retention", {}).get("keepPrevious", -1)
 
-    entries = manifest["extensions"]
+    entries = list(manifest["extensions"])
     if args.only:
         entries = [e for e in entries if e["module"] == args.only]
+
+    # "Wanted" sources are never listed by hand: each run resolves them against
+    # upstream's published index and adopts any it ships on the classic API, so a source
+    # upstream adds or fixes is built and published without a manifest edit. Ones we
+    # only want to watch are reported instead. Skipped for a single-module run.
+    discovery = manifest.get("sourceDiscovery") or {}
+    wanted = discovery.get("wanted") or []
+    if wanted and not args.only:
+        records = keiyoushi_index(discovery.get("index", KEIYOUSHI_INDEX_URL))
+        print(f"== wanted sources ({len(wanted)}; upstream index: "
+              f"{len(records)} extension(s))")
+        if not records:
+            report.watch.append({"module": "upstream-index", "status": "unavailable",
+                                 "detail": "could not fetch keiyoushi's published index"})
+        adopted = {e["module"] for e in entries}
+        for want in wanted:
+            if not records:
+                report.watch.append({"module": want["name"], "status": "unknown",
+                                     "detail": "upstream index unavailable this run"})
+                continue
+            status, record, detail = resolve_wanted(want, records)
+            print(f"   {want['name']}: {status} - {detail}")
+            report.watch.append({"module": want["name"], "status": status, "detail": detail})
+            if status == "in-upstream-buildable" and record and not args.watch_only:
+                module = module_for_pkg(record["pkg"])
+                if module not in adopted:
+                    entries.append({"module": module, "track": "main", "_discovered": record})
+                    adopted.add(module)
 
     failures = 0
     if not args.watch_only and entries:

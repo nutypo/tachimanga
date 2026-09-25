@@ -5,27 +5,27 @@ Custom extension repository for [Tachimanga](https://tachimanga.app/).
 ## Available Sources
 
 | Source | Language | NSFW | URL |
-|--------|----------|------|-----|
-| Manga18fx | English | Yes | https://manga18fx.com |
+|---|---|---|---|
+| Komikindo.live | English | Yes | https://komikindo.live |
 | Manga18.Club | English | Yes | https://manga18.club |
-| 漫小肆韓漫 (Ikanwzd) | 中文 | Yes | https://www.ikanwzd.cc |
-| 18漫畫 (EighteenMH) | 中文 | Yes | https://18mh.org |
-| 巴卡漫画 (Bakamh) | 中文 | Yes | https://bakamh.com |
-| 包子漫画 (Baozi Manhua) | 中文 | No | https://www.baozimh.com |
-| GoDa漫画 (BaozimhOrg) | 中文 | No | https://baozimh.org |
-| 拷貝漫畫 (MangaCopy) | 中文 | Yes | https://www.mangacopy.com |
+| Manga18fx | English | Yes | https://manga18fx.com |
+| Mangaforfree.com | English | Yes | https://mangaforfree.com |
+| Temple Scan | Español | Yes | https://aedexnox.pwhost.xyz |
+| 巴卡漫画 (bakamh) | 中文 | Yes | https://bakamh.com |
+| 包子漫画 (baozimanhua) | 中文 | No | https://www.baozimh.com |
+| GoDa漫画 (baozimhorg) | 中文 | No | https://baozimh.org |
+| 哔哩漫画 (bilimanga) | 中文 | Yes | https://www.bilimanga.net |
+| 18漫畫 (eighteenmh) | 中文 | Yes | https://18mh.org |
 | Hanime1 | 中文 | Yes | https://hanime1.me |
 | Ho5Ho | 中文 | Yes | https://www.ho5ho.com |
-| 哔哩漫画 (BiliManga) | 中文 | Yes | https://www.bilimanga.net |
+| 漫小肆韓漫 (ikanwzd) | 中文 | Yes | https://www.ikanwzd.cc |
+| 禁漫天堂 (jinmantiantang) | 中文 | Yes | https://18comic.ink |
 | Komiic | 中文 | Yes | https://komiic.com |
+| 拷貝漫畫 (mangacopy) | 中文 | Yes | https://www.mangacopy.com |
 | MyComic | 中文 | Yes | https://mycomic.com |
-| 紳士漫畫 (WNACG) | 中文 | Yes | https://www.wnacg.com |
-| 再漫画 (Zaimanhua) | 中文 | No | https://www.zaimanhua.com |
-| 禁漫天堂 (Jinmantiantang) | 中文 | Yes | https://18comic.vip |
-| pawo漫画 (Pawomh) | 中文 | Yes | https://pawomh1.cc |
-| Temple Scan | Español | Yes | https://templescanesp.net |
-| Komikindo.live | English | Yes | https://komikindo.live |
-| Mangaforfree.com | English | Yes | https://mangaforfree.com |
+| pawo漫画 (pawomh) | 中文 | Yes | https://pawomh1.cc |
+| 紳士漫畫 (wnacg) | 中文 | Yes | https://www.wnacg.com |
+| 再漫画 (zaimanhua) | 中文 | No | https://www.zaimanhua.com |
 
 ## How to Use
 
@@ -56,27 +56,27 @@ After installation, go to **Browse → Sources**, select the source you installe
 ## 可用图源
 
 | 图源 | 语言 | NSFW | 网址 |
-|------|------|------|------|
-| Manga18fx | English | 是 | https://manga18fx.com |
+|---|---|---|---|
+| Komikindo.live | English | 是 | https://komikindo.live |
 | Manga18.Club | English | 是 | https://manga18.club |
-| 漫小肆韓漫 (Ikanwzd) | 中文 | 是 | https://www.ikanwzd.cc |
-| 18漫畫 (EighteenMH) | 中文 | 是 | https://18mh.org |
-| 巴卡漫画 (Bakamh) | 中文 | 是 | https://bakamh.com |
-| 包子漫画 (Baozi Manhua) | 中文 | 否 | https://www.baozimh.com |
-| GoDa漫画 (BaozimhOrg) | 中文 | 否 | https://baozimh.org |
-| 拷貝漫畫 (MangaCopy) | 中文 | 是 | https://www.mangacopy.com |
+| Manga18fx | English | 是 | https://manga18fx.com |
+| Mangaforfree.com | English | 是 | https://mangaforfree.com |
+| Temple Scan | Español | 是 | https://aedexnox.pwhost.xyz |
+| 巴卡漫画 (bakamh) | 中文 | 是 | https://bakamh.com |
+| 包子漫画 (baozimanhua) | 中文 | 否 | https://www.baozimh.com |
+| GoDa漫画 (baozimhorg) | 中文 | 否 | https://baozimh.org |
+| 哔哩漫画 (bilimanga) | 中文 | 是 | https://www.bilimanga.net |
+| 18漫畫 (eighteenmh) | 中文 | 是 | https://18mh.org |
 | Hanime1 | 中文 | 是 | https://hanime1.me |
 | Ho5Ho | 中文 | 是 | https://www.ho5ho.com |
-| 哔哩漫画 (BiliManga) | 中文 | 是 | https://www.bilimanga.net |
+| 漫小肆韓漫 (ikanwzd) | 中文 | 是 | https://www.ikanwzd.cc |
+| 禁漫天堂 (jinmantiantang) | 中文 | 是 | https://18comic.ink |
 | Komiic | 中文 | 是 | https://komiic.com |
+| 拷貝漫畫 (mangacopy) | 中文 | 是 | https://www.mangacopy.com |
 | MyComic | 中文 | 是 | https://mycomic.com |
-| 紳士漫畫 (WNACG) | 中文 | 是 | https://www.wnacg.com |
-| 再漫画 (Zaimanhua) | 中文 | 否 | https://www.zaimanhua.com |
-| 禁漫天堂 (Jinmantiantang) | 中文 | 是 | https://18comic.vip |
-| pawo漫画 (Pawomh) | 中文 | 是 | https://pawomh1.cc |
-| Temple Scan | Español | 是 | https://templescanesp.net |
-| Komikindo.live | English | 是 | https://komikindo.live |
-| Mangaforfree.com | English | 是 | https://mangaforfree.com |
+| pawo漫画 (pawomh) | 中文 | 是 | https://pawomh1.cc |
+| 紳士漫畫 (wnacg) | 中文 | 是 | https://www.wnacg.com |
+| 再漫画 (zaimanhua) | 中文 | 否 | https://www.zaimanhua.com |
 
 ## 使用方法
 

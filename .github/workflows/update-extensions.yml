@@ -82,6 +82,11 @@ jobs:
           if [ "${{ inputs.watch_only }}" = "true" ]; then ARGS+=(--watch-only); fi
           python3 self/.github/scripts/build_extensions.py --repo self "${ARGS[@]}"
 
+      - name: Regenerate the README
+        if: always()
+        working-directory: self
+        run: python3 .github/scripts/readme.py .
+
       - name: Summarise
         if: always()
         working-directory: self
@@ -125,7 +130,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A repo ci-report.json
+          git add -A repo README.md ci-report.json
           if git diff --cached --quiet; then
             echo "nothing to publish"
             exit 0

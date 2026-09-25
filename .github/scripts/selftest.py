@@ -42,6 +42,14 @@ def check_true(label: str, got) -> None:
     check(label, bool(got), True)
 
 
+def raises(fn, *args, **kwargs) -> str:
+    try:
+        fn(*args, **kwargs)
+    except Exception as exc:  # noqa: BLE001 - the type is the point
+        return type(exc).__name__
+    return "no exception"
+
+
 def write_catalog(root: pathlib.Path, text: str) -> pathlib.Path:
     path = root / "gradle/kei.versions.toml"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +183,29 @@ def test_publishing(manifest: dict) -> None:
                                          (repo / "repo/index.min.json").read_text(encoding="utf-8").splitlines())),
               3)
 
+        # A source adopted from upstream has no index entry yet, so publishing has to
+        # create one from upstream's own description rather than refuse to list it.
+        record = {
+            "pkg": "eu.kanade.tachiyomi.extension.zh.mangaxiaosi", "name": "Manga Xiao Si",
+            "libVersion": "1.4", "nsfw": True,
+            "sources": [{"id": "8072816679633628898", "name": "Manga Xiao Si",
+                         "lang": "zh", "url": "https://www.jjmhw2.top"}],
+        }
+        adopted = {"path": str(live), "pkg": record["pkg"], "code": 100001, "version": "1.4.1"}
+        name = be.publish(repo, "src/zh/mangaxiaosi", adopted, 3, meta=record)
+        fresh = next((e for e in json.loads((repo / "repo/index.min.json").read_text(encoding="utf-8"))
+                      if e["pkg"] == record["pkg"]), {})
+        check("an adopted source is appended to the index",
+              (name, fresh.get("apk"), fresh.get("code"), fresh.get("version"),
+               fresh.get("sources", [{}])[0].get("baseUrl")),
+              ("tachiyomi-zh.mangaxiaosi-v1.4.1.apk", name, 100001, "1.4.1",
+               "https://www.jjmhw2.top"))
+        check("an unlisted source with no upstream metadata still stops the publish",
+              raises(be.publish, repo, "src/zh/ghost",
+                     {"path": str(live), "pkg": "eu.kanade.tachiyomi.extension.zh.ghost",
+                      "code": 1, "version": "1.0.0"}, 3),
+              "RuntimeError")
+
 
 def test_retention(manifest: dict) -> None:
     check("builds are ordered by version, not as text",
@@ -280,6 +311,95 @@ def test_signing(manifest: dict) -> None:
 
 
 
+def test_discovery(manifest: dict) -> None:
+    """Wanted sources are resolved against upstream's published index, not guessed at.
+
+    The fixtures mirror what keiyoushi shipped on 2026-09-25: 漫小肆 (jjmhw) and
+    肉漫屋 (rouman5) exist, the first still on the classic API, the second moved to
+    KeiSource; the rest of the wanted list upstream does not carry at all.
+    """
+    records = [
+        {"pkg": "eu.kanade.tachiyomi.extension.zh.mangaxiaosi", "name": "Manga Xiao Si",
+         "libVersion": "1.4", "nsfw": True,
+         "sources": [{"id": "8072816679633628898", "name": "Manga Xiao Si",
+                      "lang": "zh", "url": "https://www.jjmhw2.top"}]},
+        {"pkg": "eu.kanade.tachiyomi.extension.zh.roumanwu", "name": "Roumanwu",
+         "libVersion": "1.6", "nsfw": True,
+         "sources": [{"id": "3647420805839021718", "name": "肉漫屋",
+                      "lang": "zh", "url": "https://rouman5.com"}]},
+    ]
+    wanted = {w["name"]: w for w in manifest["sourceDiscovery"]["wanted"]}
+
+    status, record, _ = be.resolve_wanted(wanted["jjmhw"], records)
+    assert record is not None
+    check("a classic upstream module is adopted",
+          (status, be.module_for_pkg(record["pkg"])),
+          ("in-upstream-buildable", "src/zh/mangaxiaosi"))
+
+    check("a module upstream moved to KeiSource is only reported",
+          be.resolve_wanted(wanted["rouman5"], records)[0], "in-upstream-incompatible")
+    _, by_domain, _ = be.resolve_wanted(
+        {"name": "x", "url": "https://rouman5.com", "match": []}, records)
+    assert by_domain is not None
+    check("the domain decides the match when aliases also fit",
+          by_domain["pkg"], "eu.kanade.tachiyomi.extension.zh.roumanwu")
+    check("a source upstream does not carry is reported",
+          be.resolve_wanted(wanted["newxtoon"], records)[0], "no-upstream-module")
+
+    info = {"pkg": "eu.kanade.tachiyomi.extension.zh.mangaxiaosi", "code": 100001,
+            "version": "1.4.1"}
+    entry = be.index_entry(info, record)
+    check("an adopted source gets a complete index entry",
+          (entry["name"], entry["lang"], entry["code"], entry["version"], entry["nsfw"],
+           entry["sources"][0]["baseUrl"], entry["sources"][0]["id"]),
+          ("Tachiyomi: Manga Xiao Si", "zh", 100001, "1.4.1", 1,
+           "https://www.jjmhw2.top", "8072816679633628898"))
+
+    check("module paths round-trip through packages",
+          be.module_for_pkg(be.package_for("src/ko/newxtoon")), "src/ko/newxtoon")
+
+
+def test_readme() -> None:
+    """The README tables are generated from the index, so they cannot drift from it."""
+    import readme
+
+    entries = json.loads((REPO / "repo/index.min.json").read_text(encoding="utf-8"))
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        (root / "repo").mkdir()
+        shutil.copyfile(REPO / "repo/index.min.json", root / "repo/index.min.json")
+        # Start from deliberately stale tables: a generator that merely accepted the
+        # committed file would pass here without doing anything.
+        (root / "README.md").write_text(
+            "# Demo\n\nprose above\n\n"
+            f"{readme.ENGLISH_HEADER}\n{readme.SEPARATOR}\n| stale | x | No | http://stale |\n\n"
+            f"{readme.CHINESE_HEADER}\n{readme.SEPARATOR}\n| stale | x | 否 | http://stale |\n\n"
+            "prose below\n",
+            encoding="utf-8",
+        )
+
+        check("regenerating rewrites the tables", readme.regenerate(root), True)
+        check("regenerating again is a no-op", readme.regenerate(root), False)
+
+        text = (root / "README.md").read_text(encoding="utf-8")
+        check_true("the prose around the tables is left alone",
+                   "prose above" in text and "prose below" in text and "http://stale" not in text)
+        check_true("an English source is listed with its URL",
+                   "| Manga18fx | English | Yes | https://manga18fx.com |" in text)
+        check_true("a non-Latin source keeps its module in brackets",
+                   "| 巴卡漫画 (bakamh) | 中文 | Yes | https://bakamh.com |" in text)
+        check_true("the 中文 table uses 是/否",
+                   "| 巴卡漫画 (bakamh) | 中文 | 是 | https://bakamh.com |" in text)
+
+        for header in (readme.ENGLISH_HEADER, readme.CHINESE_HEADER):
+            lines = text.splitlines()
+            first = lines.index(header) + 2  # skip the header and the separator
+            count = 0
+            while first + count < len(lines) and lines[first + count].startswith("|"):
+                count += 1
+            check(f"every published source is listed under {header}", count, len(entries))
+
+
 def test_manifest(manifest: dict) -> None:
     """The index and the manifest have to agree, or a build publishes nothing."""
     entries = json.loads((REPO / "repo/index.min.json").read_text(encoding="utf-8"))
@@ -300,6 +420,12 @@ def test_manifest(manifest: dict) -> None:
         check_true(f"{name} is one of the extensions we ship",
                    any(e["pkg"].rsplit(".", 1)[-1] == name for e in entries))
 
+    # Wanted sources are matched by URL host and by alias, so both have to be present for
+    # the resolver to be able to find a source upstream later adopts.
+    for want in manifest.get("sourceDiscovery", {}).get("wanted", []):
+        check_true(f"{want['name']} is a fully described wanted source",
+                   bool(want.get("name") and want.get("url") and want.get("match")))
+
 
 def main() -> int:
     manifest = json.loads((REPO / ".github/extensions.json").read_text(encoding="utf-8"))
@@ -309,6 +435,8 @@ def main() -> int:
                      ("publishing", test_publishing),
                      ("retention", test_retention),
                      ("signing", test_signing),
+                     ("discovery", test_discovery),
+                     ("README", lambda _m: test_readme()),
                      ("manifest", test_manifest)):
         print(f"\n== {name}")
         fn(manifest)

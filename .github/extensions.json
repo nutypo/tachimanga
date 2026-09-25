@@ -51,7 +51,12 @@
     { "module": "src/es/templescanesp", "track": "main" },
     { "module": "src/zh/bakamh", "track": "main" },
     { "module": "src/zh/hanime1", "track": "main" },
-    { "module": "src/zh/jinmantiantang", "track": "main" },
+    {
+      "module": "src/zh/jinmantiantang",
+      "ref": "9b78a3583c5f7d6a3c0b79907ac95f70de33ef3c",
+      "patch": "patch-jinmantiantang.py",
+      "_comment": "Upstream migrated this to libVersion 1.6 / KeiSource on 2026-09-22 (#19244), so this is pinned to the last revision that still uses the classic API. The patch backports the mirror fix 18comic.vip needs (it is behind a Cloudflare challenge now) onto it."
+    },
     { "module": "src/zh/zaimanhua", "track": "main" },
     {
       "module": "src/zh/wnacg",
@@ -69,6 +74,35 @@
       "-1 keeps every previous build (and is what a missing key falls back to)."
     ],
     "keepPrevious": 3
+  },
+
+  "sourceDiscovery": {
+    "_comment": [
+      "Sources we would like to carry that keiyoushi may or may not ship. Every run",
+      "resolves each one against keiyoushi's published index (a single HTTP request) and",
+      "adopts any it finds on the classic API - building it and giving it an index entry -",
+      "so a source upstream adds or fixes is published without editing this file. Ones that",
+      "are missing, or that upstream has moved to KeiSource (libVersion 1.6, which",
+      "Tachimanga cannot load), are reported in ci-report.json instead.",
+      "`url` is the source's own address (matched against upstream's advertised base URL);",
+      "`match` holds aliases tried against the package name and source names when the URL",
+      "does not line up - upstream often romanises the module slug and uses a mirror domain.",
+      "These are the sources a sibling fork (leijie115/tachimanga) added by hand, listed",
+      "here so the pipeline picks them up from source instead of syncing its APKs."
+    ],
+    "index": "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json",
+    "wanted": [
+      { "name": "jjmhw", "lang": "zh", "url": "https://www.jjmhw.cc",
+        "match": ["mangaxiaosi", "jjmhw", "漫小肆"] },
+      { "name": "rouman5", "lang": "zh", "url": "https://rouman5.com",
+        "match": ["roumanwu", "肉漫屋"] },
+      { "name": "comic55", "lang": "zh", "url": "https://www.55comic.com",
+        "match": ["comic55", "55comic", "污污"] },
+      { "name": "jmd91", "lang": "zh", "url": "https://91jmd.com",
+        "match": ["jmd91", "91jmd", "禁漫岛"] },
+      { "name": "newxtoon", "lang": "ko", "url": "https://newxtoon1.com",
+        "match": ["newxtoon", "뉴엑스툰"] }
+    ]
   },
 
   "watch": {
