@@ -164,6 +164,31 @@ def apk_signing_fingerprint(apk: pathlib.Path) -> str:
     return out.split("=")[-1].replace(":", "").strip().lower()
 
 
+def apk_entry_class(apk: pathlib.Path) -> str:
+    """The entry class from the manifest's tachiyomi.extension.class meta-data.
+
+    Classic builds name it relative to the extension's package ('.ClassName'); keiyoushi's
+    newer build logic names it absolutely ('keiyoushi.source.Generated'). Only the first
+    loads in Tachimanga, which - unlike current Mihon - prefixes the package name and has
+    no branch for absolute names.
+    """
+    aapt = find_aapt()
+    if not aapt:
+        return ""
+    try:
+        out = run([aapt, "dump", "xmltree", str(apk), "AndroidManifest.xml"]).stdout
+    except (RuntimeError, OSError):
+        return ""
+    lines = out.splitlines()
+    for index, line in enumerate(lines):
+        if "tachiyomi.extension.class" in line and index + 1 < len(lines):
+            match = re.search(r'Raw: "([^"]*)"', lines[index + 1]) \
+                or re.search(r'="([^"]*)"', lines[index + 1])
+            if match:
+                return match.group(1)
+    return ""
+
+
 def gate_reasons(info: dict, gates: dict, expected_pkg: str) -> list[str]:
     problems = []
     if info.get("pkg") != expected_pkg:
@@ -174,6 +199,13 @@ def gate_reasons(info: dict, gates: dict, expected_pkg: str) -> list[str]:
     for symbol in gates.get("requireDexSymbols", []):
         if symbol not in apk_dex_symbols(apk, [symbol]):
             problems.append(f"does not reference {symbol} (not a classic-API extension?)")
+    if gates.get("requireRelativeEntryClass"):
+        entry = apk_entry_class(apk)
+        if not entry:
+            problems.append("the manifest declares no tachiyomi.extension.class")
+        elif not entry.startswith("."):
+            problems.append(f"entry class {entry!r} is absolute; Tachimanga resolves it "
+                            "relative to the package, so only '.Class' loads")
     max_min_sdk = gates.get("maxMinSdk")
     if max_min_sdk and info.get("minSdk", 0) > max_min_sdk:
         problems.append(f"minSdk {info['minSdk']} exceeds {max_min_sdk}")
@@ -296,8 +328,14 @@ def prune_old_apks(repo: pathlib.Path, module: str, current: str, keep: int) -> 
     return removed
 
 
-def decide_publish(repo: pathlib.Path, info: dict, keystore_fp: str) -> tuple[bool, str]:
-    """Publish unless the index already advertises this build, signed with our key."""
+def decide_publish(repo: pathlib.Path, info: dict, keystore_fp: str,
+                   gates: dict | None = None) -> tuple[bool, str]:
+    """Publish unless the index already advertises this build, signed with our key.
+
+    `gates` lets a stricter gate replace a build that is already out there: a policy
+    change (like requiring a classic entry class) invalidates published APKs without
+    changing their version, so they would otherwise never be rebuilt.
+    """
     _, entries = load_index(repo)
     current = next((e for e in entries if e["pkg"] == info["pkg"]), None)
     if current is None:
@@ -315,6 +353,14 @@ def decide_publish(repo: pathlib.Path, info: dict, keystore_fp: str) -> tuple[bo
         return False, "already published (signatures could not be compared)"
     if ours != keystore_fp:
         return True, "published APK was signed with a different key"
+    if gates is not None and find_aapt():
+        try:
+            probe = {**apk_info(published), "path": str(published), "pkg": info["pkg"]}
+            stale = gate_reasons(probe, gates, info["pkg"])
+        except (RuntimeError, OSError):
+            stale = []
+        if stale:
+            return True, f"published APK no longer passes the gates ({stale[0]})"
     return False, "already published with this key"
 
 
@@ -657,6 +703,23 @@ def effective_gates(manifest: dict) -> dict:
     return {**manifest["gates"], "maxMinSdk": manifest["targetMinSdk"]["value"]}
 
 
+def apply_prep_patches(upstream: pathlib.Path, manifest: dict, repo: pathlib.Path) -> None:
+    """Run the manifest's global prep patches against a fresh upstream checkout.
+
+    Unlike a module's own `patch`, these fix something that has to hold for every module
+    built from this checkout - e.g. making the generated entry class loadable on
+    Tachimanga - so they are applied once per clone rather than per module.
+    """
+    for name in manifest.get("prep", {}).get("patches", []):
+        script = repo / ".github/scripts" / name
+        try:
+            run(["python3", str(script), str(upstream)])
+        except RuntimeError as exc:
+            # The gate rejects whatever a failed prep leaves behind, so a moved anchor
+            # shows up as skipped extensions rather than as silently broken publishes.
+            print(f"   prep patch {name} did not apply: {exc}")
+
+
 def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Path,
                 gates: dict, min_sdk: dict, keep_previous: int, signing_env: dict,
                 keystore_fp: str) -> tuple[Result, str]:
@@ -696,7 +759,7 @@ def build_entry(entry: dict, upstream: pathlib.Path, ref: str, repo: pathlib.Pat
             result.reason = "; ".join(problems)
             return result, "skipped"
 
-        should, why = decide_publish(repo, info, keystore_fp)
+        should, why = decide_publish(repo, info, keystore_fp, gates)
         if not should:
             result.status = "up-to-date"
             result.reason = why
@@ -807,6 +870,7 @@ def main() -> int:
         for ref, group in by_ref.items():
             upstream = clone_upstream(ref, workdir)
             shutil.copyfile(keystore, upstream / "signingkey.jks")
+            apply_prep_patches(upstream, manifest, repo)
             print(f"== upstream {ref} ({len(group)} extension(s))")
             for entry in group:
                 print(f"-> {entry['module']}")

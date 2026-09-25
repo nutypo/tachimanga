@@ -112,6 +112,19 @@ def test_gates(manifest: dict) -> None:
     info = {"path": str(apk), "pkg": pkg, "code": 23, "version": "1.4.23", "minSdk": target}
     check("a conforming APK passes every gate", be.gate_reasons(info, gates, pkg), [])
 
+    # The newer build logic names the entry class absolutely; Tachimanga prefixes the
+    # package name (it has no absolute-name branch), so such an APK must not be published.
+    check("a classic APK declares a relative entry class", be.apk_entry_class(apk), ".WNACG")
+    new_format = REPO / "repo/apk/tachiyomi-zh.jinmantiantang-v1.4.58.apk"
+    if new_format.exists():
+        check("the newer build logic names the entry class absolutely",
+              be.apk_entry_class(new_format), "keiyoushi.source.Generated")
+        absolute = {**info, "path": str(new_format),
+                    "pkg": "eu.kanade.tachiyomi.extension.zh.jinmantiantang"}
+        check_true("an absolute entry class is rejected",
+                   any("entry class" in reason
+                       for reason in be.gate_reasons(absolute, gates, absolute["pkg"])))
+
     # This is the failure that took the 7 track:main extensions out of the last run.
     over = be.gate_reasons({**info, "minSdk": target + 5}, gates, pkg)
     check_true("an APK above the minSdk cap is rejected", over)
@@ -148,26 +161,33 @@ def test_publishing(manifest: dict) -> None:
         live = repo / "repo/apk/tachiyomi-zh.wnacg-v1.4.23.apk"
         running = be.apk_signing_fingerprint(live)
         check_true("the shipped APK has a readable signature", running)
+        gates = be.effective_gates(manifest)
 
         pkg = "eu.kanade.tachiyomi.extension.zh.wnacg"
         same = {"path": str(live), "pkg": pkg, "code": 23, "version": "1.4.23"}
         check("an unchanged build is not republished",
-              be.decide_publish(repo, same, running),
+              be.decide_publish(repo, same, running, gates),
               (False, "already published with this key"))
+
+        # A stricter gate (e.g. the classic entry class) has to replace an already
+        # published build, which cannot wait for a version bump to be rebuilt.
+        check_true("a published APK that fails the current gates is republished",
+                   be.decide_publish(repo, same, running,
+                                     {"requireDexSymbols": ["no/such/symbol"]})[0])
 
         # Rotating or losing the key would otherwise strand everyone on the old
         # signature, because Android won't update across a signing change.
         check("a build under a new key is republished",
-              be.decide_publish(repo, same, "a" * 64),
+              be.decide_publish(repo, same, "a" * 64, gates),
               (True, "published APK was signed with a different key"))
 
         older = {**same, "code": 22, "version": "1.4.22"}
         check_true("an older build is never published",
-                   be.decide_publish(repo, older, running)[0] is False)
+                   be.decide_publish(repo, older, running, gates)[0] is False)
 
         newer = {"path": str(live), "pkg": pkg, "code": 24, "version": "1.4.24"}
         check("a newer build is published",
-              be.decide_publish(repo, newer, running)[1], "updates 1.4.23 -> 1.4.24")
+              be.decide_publish(repo, newer, running, gates)[1], "updates 1.4.23 -> 1.4.24")
 
         name = be.publish(repo, "src/zh/wnacg", newer, 3)
         check("the APK is named after the module and version",
@@ -425,6 +445,10 @@ def test_manifest(manifest: dict) -> None:
     for want in manifest.get("sourceDiscovery", {}).get("wanted", []):
         check_true(f"{want['name']} is a fully described wanted source",
                    bool(want.get("name") and want.get("url") and want.get("match")))
+
+    # The global prep patches run on every checkout, so they have to be committed.
+    for name in manifest.get("prep", {}).get("patches", []):
+        check_true(f"the prep patch {name} is committed", (HERE / name).exists())
 
 
 def main() -> int:

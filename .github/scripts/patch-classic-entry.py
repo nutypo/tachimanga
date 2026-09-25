@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+r"""Move keiyoushi's generated entry class into the extension's package.
+
+Run from the root of the checked-out upstream repo:
+
+    python3 patch-classic-entry.py
+
+Upstream's newer build logic (the ``keiyoushi { }`` DSL) generates each extension's
+entry point as ``keiyoushi.source.Generated`` and declares that *absolute* name in the
+manifest:
+
+    <meta-data android:name="tachiyomi.extension.class"
+               android:value="keiyoushi.source.Generated" />
+
+Recent Mihon resolves a value that does not start with ``.`` as a fully-qualified name.
+Classic Tachiyomi and its forks (Tachimanga) instead follow the original convention and
+always prepend the extension's package, so they look for a class that does not exist and
+refuse to load the extension.
+
+This is the same migration that introduced KeiSource; it happens even when
+``libVersion = "1.4"``, so building a "1.4" revision is not enough - the entry point has
+to move. Two changes fix it for every module at once:
+
+1. Generate the entry class into the extension's own package (the @Source class's
+   package, which is also the app's package) instead of the fixed ``keiyoushi.source``.
+2. Declare it relatively (``.Generated``) so classic and current apps both resolve it.
+
+Idempotent, and a no-op on a revision that predates this build logic (e.g. the pre-DSL
+revision wnacg is pinned to), where the files are absent.
+"""
+
+import pathlib
+import sys
+
+ROOT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path.cwd()
+
+MANIFEST_TASK = (ROOT / "gradle/build-logic/src/main/kotlin/io/github/keiyoushi/gradle"
+                 / "tasks/GenerateManifestTask.kt")
+PROCESSOR = ROOT / "compiler/src/main/kotlin/keiyoushi/processor/SourceProcessor.kt"
+
+MANIFEST_CHANGES = [(
+    "// Must match GENERATED_CLASS_PACKAGE/NAME in "
+    "compiler/src/main/kotlin/keiyoushi/processor/SourceProcessor.kt\n"
+    'internal const val GENERATED_EXTENSION_CLASS_FQN = "keiyoushi.source.Generated"',
+    "// Must stay relative to the extension's own package: SourceProcessor generates the\n"
+    "// class there, and classic Tachiyomi/Tachimanga forks prefix this value with the\n"
+    "// package name (recent Mihon resolves both forms).\n"
+    'internal const val GENERATED_EXTENSION_CLASS_FQN = ".Generated"',
+)]
+
+PROCESSOR_CHANGES = [
+    (
+        "// Fixed entry point FQN referenced by the generated manifest; independent of the module\n"
+        "// directory, the @Source class's package, and the pkgName override.\n"
+        'private const val GENERATED_CLASS_PACKAGE = "keiyoushi.source"\n'
+        'private const val GENERATED_CLASS_NAME = "Generated"',
+        "// The generated entry point lives in the extension's own package (the @Source\n"
+        "// class's package) so the manifest can name it relatively - \".Generated\" - and\n"
+        "// classic forks, which prefix the value with the package name, resolve it.\n"
+        'private const val GENERATED_CLASS_NAME = "Generated"',
+    ),
+    (
+        "        FileSpec.builder(GENERATED_CLASS_PACKAGE, GENERATED_CLASS_NAME)",
+        "        FileSpec.builder(annotatedClass.packageName, GENERATED_CLASS_NAME)",
+    ),
+]
+
+
+def patch(path: pathlib.Path, pairs) -> str:
+    if not path.exists():
+        return f"{path.name}: absent (revision predates the new build logic)"
+    text = path.read_text(encoding="utf-8")
+    original = text
+    for old, new in pairs:
+        if new in text and old not in text:
+            continue  # already applied
+        count = text.count(old)
+        if count != 1:
+            sys.exit(f"error: expected exactly 1 occurrence in {path}, found {count}:\n  {old!r}")
+        text = text.replace(old, new)
+    if text == original:
+        return f"{path.name}: already patched"
+    path.write_text(text, encoding="utf-8")
+    return f"patched {path.name}"
+
+
+for note in (patch(MANIFEST_TASK, MANIFEST_CHANGES), patch(PROCESSOR, PROCESSOR_CHANGES)):
+    print(f"classic entry: {note}")

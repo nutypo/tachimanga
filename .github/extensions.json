@@ -27,10 +27,15 @@
       "An APK is only published if every gate passes. Tachimanga runs the classic",
       "Mihon/Tachiyomi extension API; extensions compiled against keiyoushi extensions-lib",
       "1.6 (KeiSource) require Mihon 0.20.1+ and fail on Tachimanga.",
+      "The newer build logic also names the entry class absolutely",
+      "(keiyoushi.source.Generated), which Tachimanga resolves as a relative name and so",
+      "cannot load; the prep patch below moves it into the extension's package, and this",
+      "gate stops anything that slips through from being published.",
       "These are checked on the built APK, so they cannot be fooled by build-config changes."
     ],
     "rejectDexSymbols": ["KeiSource"],
-    "requireDexSymbols": ["eu/kanade/tachiyomi/source/online"]
+    "requireDexSymbols": ["eu/kanade/tachiyomi/source/online"],
+    "requireRelativeEntryClass": true
   },
 
   "targetMinSdk": {
@@ -65,6 +70,16 @@
       "_comment": "Upstream moved to libVersion 1.6 / KeiSource on 2026-09-11, so this is pinned to the last revision that still uses the classic API, with the ?verify= image-parsing fix backported onto it."
     }
   ],
+
+  "prep": {
+    "_comment": [
+      "Global fixes applied once to every upstream checkout before anything is built, as",
+      "opposed to an extension's own `patch`. patch-classic-entry.py moves keiyoushi's",
+      "generated entry class into the extension's package and names it relatively, which is",
+      "what lets Tachimanga load a build made with the newer build logic at all."
+    ],
+    "patches": ["patch-classic-entry.py"]
+  },
 
   "retention": {
     "_comment": [
