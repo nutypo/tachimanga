@@ -22,6 +22,7 @@ Custom extension repository for [Tachimanga](https://tachimanga.app/).
 | 禁漫天堂 (jinmantiantang) | 中文 | Yes | https://18comic.ink |
 | Komiic | 中文 | Yes | https://komiic.com |
 | 拷貝漫畫 (mangacopy) | 中文 | Yes | https://www.mangacopy.com |
+| Manga Xiao Si | 中文 | Yes | https://www.jjmhw2.top |
 | MyComic | 中文 | Yes | https://mycomic.com |
 | pawo漫画 (pawomh) | 中文 | Yes | https://pawomh1.cc |
 | 紳士漫畫 (wnacg) | 中文 | Yes | https://www.wnacg.com |
@@ -73,6 +74,7 @@ After installation, go to **Browse → Sources**, select the source you installe
 | 禁漫天堂 (jinmantiantang) | 中文 | 是 | https://18comic.ink |
 | Komiic | 中文 | 是 | https://komiic.com |
 | 拷貝漫畫 (mangacopy) | 中文 | 是 | https://www.mangacopy.com |
+| Manga Xiao Si | 中文 | 是 | https://www.jjmhw2.top |
 | MyComic | 中文 | 是 | https://mycomic.com |
 | pawo漫画 (pawomh) | 中文 | 是 | https://pawomh1.cc |
 | 紳士漫畫 (wnacg) | 中文 | 是 | https://www.wnacg.com |
