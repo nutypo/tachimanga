@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -131,6 +132,28 @@ def test_gates(manifest: dict) -> None:
     check("nothing is published for a wrong package",
           be.gate_reasons(info, gates, pkg + ".other"),
           [f"package is {pkg!r}, index expects {pkg + '.other'!r}"])
+
+
+def test_zaimanhua_patch(manifest: dict) -> None:
+    entry = next(e for e in manifest["extensions"] if e["module"] == "src/zh/zaimanhua")
+    check("Zaimanhua experiment pins a revision", entry.get("ref"),
+          "9843655a6a4eef1876992cf6ab0205482b7e4c8e")
+    check("Zaimanhua experiment uses the JWT backport", entry.get("patch"),
+          "patch-zaimanhua.py")
+    with tempfile.TemporaryDirectory() as tmp:
+        source = (pathlib.Path(tmp) / "src/zh/zaimanhua/src/eu/kanade/tachiyomi/"
+                  "extension/zh/zaimanhua/Zaimanhua.kt")
+        source.parent.mkdir(parents=True)
+        original = "val payload = Base64.decode(parts[1], Base64.DEFAULT).toString(Charsets.UTF_8)\n"
+        source.write_text(original, encoding="utf-8")
+        cmd = [sys.executable, str(HERE / entry["patch"]), tmp]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        check("Zaimanhua JWT backport succeeds", result.returncode, 0)
+        check("Zaimanhua JWT backport changes only the decoder",
+              source.read_text(encoding="utf-8"),
+              original.replace("Base64.DEFAULT", "Base64.URL_SAFE or Base64.NO_WRAP"))
+        check_true("Zaimanhua patch fails if reapplied instead of silently doing nothing",
+                   subprocess.run(cmd, capture_output=True, check=False).returncode != 0)
 
 
 def test_module_mapping() -> None:
@@ -596,6 +619,7 @@ def main() -> int:
     manifest = json.loads((REPO / ".github/extensions.json").read_text(encoding="utf-8"))
     for name, fn in (("lower_min_sdk", test_lower_min_sdk),
                      ("gates", test_gates),
+                     ("Zaimanhua patch", test_zaimanhua_patch),
                      ("module mapping", lambda _m: test_module_mapping()),
                      ("publishing", test_publishing),
                      ("retention", test_retention),

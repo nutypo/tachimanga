@@ -62,7 +62,12 @@
       "patch": "patch-jinmantiantang.py",
       "_comment": "Pinned to the last revision that predates upstream's newer build-logic DSL (2026-07-04, #17274), which is also the revision the sibling fork's working 1.4.57 build of this module comes from. The extensions Tachimanga does load from here were all built from a pre-DSL revision - wnacg is one, and this module's DSL build is the one that will not install: the DSL declares a generated `.Generated` entry class, an absolute `keiyoushi.source.UrlActivity` and `tachiyomix.*` meta-data, none of which a classic build has. That pin also predates the libVersion 1.6 / KeiSource migration (2026-09-22, #19244), which Tachimanga cannot load either. The patch backports the mirror fix 18comic.vip needs (it is behind a Cloudflare challenge now) onto it."
     },
-    { "module": "src/zh/zaimanhua", "track": "main" },
+    {
+      "module": "src/zh/zaimanhua",
+      "ref": "9843655a6a4eef1876992cf6ab0205482b7e4c8e",
+      "patch": "patch-zaimanhua.py",
+      "_comment": "Controlled pre-DSL install experiment: pin the last module revision before its DSL migration, backport the later JWT decoding fix. The published DSL APK remains available for rollback. Do not infer that the DSL caused the install failure until this candidate is tested in Tachimanga."
+    },
     {
       "module": "src/zh/wnacg",
       "ref": "34c463a1fe509bdcb623ac02b6574ec17610beda",
