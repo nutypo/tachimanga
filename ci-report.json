@@ -1,163 +1,29 @@
 {
-  "generatedAt": "2026-09-25T23:04:44Z",
-  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/36199529714",
+  "generatedAt": "2026-09-26T22:44:56Z",
+  "runUrl": "https://github.com/nutypo/tachimanga/actions/runs/36277253642",
   "keystore": {
     "source": "SIGNING_KEY secret",
     "alias": "nutypo-extensions",
     "sha256": "846b7ebee094f686b3138bf5f53134d775324e6989b3d5672460496a8944fd37"
   },
-  "fingerprint": {
-    "expected": "846b7ebee094f686b3138bf5f53134d775324e6989b3d5672460496a8944fd37",
-    "mismatched": [],
-    "unreadable": [],
-    "repoJson": "already current"
-  },
+  "fingerprint": {},
   "resigned": [],
   "results": [
     {
-      "module": "src/en/manga18club",
-      "ref": "main",
-      "status": "up-to-date",
-      "reason": "built 1.4.3 (code 104003) is older than the published 1.4.7 (code 104007)",
-      "prep": "minSdk lowered to 21",
-      "pkg": "eu.kanade.tachiyomi.extension.en.manga18club",
-      "version": "1.4.3",
-      "code": 104003,
-      "apk": "",
-      "bumped": "",
-      "log_tail": ""
-    },
-    {
-      "module": "src/en/mangaforfreecom",
-      "ref": "main",
-      "status": "up-to-date",
-      "reason": "built 1.6.57 (code 106057) is older than the published 1.6.113 (code 106113)",
-      "prep": "minSdk already 21",
-      "pkg": "eu.kanade.tachiyomi.extension.en.mangaforfreecom",
-      "version": "1.6.57",
-      "code": 106057,
-      "apk": "",
-      "bumped": "",
-      "log_tail": ""
-    },
-    {
-      "module": "src/es/templescanesp",
-      "ref": "main",
-      "status": "up-to-date",
-      "reason": "built 1.6.67 (code 106067) is older than the published 1.6.123 (code 106123)",
-      "prep": "minSdk already 21",
-      "pkg": "eu.kanade.tachiyomi.extension.es.templescanesp",
-      "version": "1.6.67",
-      "code": 106067,
-      "apk": "",
-      "bumped": "",
-      "log_tail": ""
-    },
-    {
-      "module": "src/zh/bakamh",
-      "ref": "main",
-      "status": "up-to-date",
-      "reason": "built 1.6.65 (code 106065) is older than the published 1.6.121 (code 106121)",
-      "prep": "minSdk already 21",
-      "pkg": "eu.kanade.tachiyomi.extension.zh.bakamh",
-      "version": "1.6.65",
-      "code": 106065,
-      "apk": "",
-      "bumped": "",
-      "log_tail": ""
-    },
-    {
-      "module": "src/zh/hanime1",
-      "ref": "main",
-      "status": "up-to-date",
-      "reason": "built 1.4.3 (code 104003) is older than the published 1.4.4 (code 104004)",
-      "prep": "minSdk already 21",
-      "pkg": "eu.kanade.tachiyomi.extension.zh.hanime1",
-      "version": "1.4.3",
-      "code": 104003,
-      "apk": "",
-      "bumped": "",
-      "log_tail": ""
-    },
-    {
       "module": "src/zh/zaimanhua",
-      "ref": "main",
-      "status": "up-to-date",
-      "reason": "built 1.4.19 (code 104019) is older than the published 1.4.20 (code 104020)",
+      "ref": "9843655a6a4eef1876992cf6ab0205482b7e4c8e",
+      "status": "published",
+      "reason": "updates 1.4.20 -> 1.4.104021; extVersionCode 18 -> 104021 in build.gradle (our recipe for it changed)",
       "prep": "minSdk already 21",
       "pkg": "eu.kanade.tachiyomi.extension.zh.zaimanhua",
-      "version": "1.4.19",
-      "code": 104019,
-      "apk": "",
-      "bumped": "",
-      "log_tail": ""
-    },
-    {
-      "module": "src/zh/mangaxiaosi",
-      "ref": "main",
-      "status": "up-to-date",
-      "reason": "built 1.4.1 (code 104001) is older than the published 1.4.2 (code 104002)",
-      "prep": "minSdk already 21",
-      "pkg": "eu.kanade.tachiyomi.extension.zh.mangaxiaosi",
-      "version": "1.4.1",
-      "code": 104001,
-      "apk": "",
-      "bumped": "",
-      "log_tail": ""
-    },
-    {
-      "module": "src/zh/jinmantiantang",
-      "ref": "e43a476f9f9ac99dd4c8271300aadf998a7f97af",
-      "status": "published",
-      "reason": "updates 1.4.60 -> 1.4.104061; extVersionCode 57 -> 104061 in build.gradle (our recipe for it changed)",
-      "prep": "minSdk already 21",
-      "pkg": "eu.kanade.tachiyomi.extension.zh.jinmantiantang",
-      "version": "1.4.104061",
-      "code": 104061,
-      "apk": "tachiyomi-zh.jinmantiantang-v1.4.104061.apk",
-      "bumped": "extVersionCode 57 -> 104061 in build.gradle (our recipe for it changed)",
-      "log_tail": ""
-    },
-    {
-      "module": "src/zh/wnacg",
-      "ref": "34c463a1fe509bdcb623ac02b6574ec17610beda",
-      "status": "up-to-date",
-      "reason": "built 1.4.23 (code 23) is older than the published 1.4.24 (code 24)",
-      "prep": "minSdk already 21",
-      "pkg": "eu.kanade.tachiyomi.extension.zh.wnacg",
-      "version": "1.4.23",
-      "code": 23,
-      "apk": "",
-      "bumped": "",
+      "version": "1.4.104021",
+      "code": 104021,
+      "apk": "tachiyomi-zh.zaimanhua-v1.4.104021.apk",
+      "bumped": "extVersionCode 18 -> 104021 in build.gradle (our recipe for it changed)",
       "log_tail": ""
     }
   ],
   "watch": [
-    {
-      "module": "jjmhw",
-      "status": "in-upstream-buildable",
-      "detail": "keiyoushi has eu.kanade.tachiyomi.extension.zh.mangaxiaosi on libVersion 1.4"
-    },
-    {
-      "module": "rouman5",
-      "status": "in-upstream-incompatible",
-      "detail": "keiyoushi has eu.kanade.tachiyomi.extension.zh.roumanwu but on libVersion 1.6"
-    },
-    {
-      "module": "comic55",
-      "status": "no-upstream-module",
-      "detail": "not in keiyoushi's index (https://www.55comic.com)"
-    },
-    {
-      "module": "jmd91",
-      "status": "no-upstream-module",
-      "detail": "not in keiyoushi's index (https://91jmd.com)"
-    },
-    {
-      "module": "newxtoon",
-      "status": "no-upstream-module",
-      "detail": "not in keiyoushi's index (https://newxtoon1.com)"
-    },
     {
       "module": "src/zh/baozimanhua",
       "status": "still-incompatible",
@@ -189,23 +55,13 @@
       "detail": "libVersion 1.6"
     },
     {
-      "module": "src/zh/jinmantiantang",
+      "module": "src/zh/zaimanhua",
       "status": "pinned",
-      "detail": "pinned at e43a476f9f9a",
+      "detail": "pinned at 9843655a6a4e",
       "newestUpstreamCommit": {
-        "sha": "e5dc53aa0357",
-        "date": "2026-09-25",
-        "message": "Jinmantiantang: fix GIF pages, add account login, restore mirror auto-update URL (#19278)"
-      }
-    },
-    {
-      "module": "src/zh/wnacg",
-      "status": "pinned",
-      "detail": "pinned at 34c463a1fe50",
-      "newestUpstreamCommit": {
-        "sha": "019b6c5bca9e",
-        "date": "2026-09-11",
-        "message": "WNACG: Add title blacklist, migrate to KeiSource 1.6, and fix image parsing (#18896)"
+        "sha": "c18528f4c2ba",
+        "date": "2026-07-24",
+        "message": "Zaimanhua: Fix crash when reading chapters due to JWT decoding error (#17871)"
       }
     },
     {
